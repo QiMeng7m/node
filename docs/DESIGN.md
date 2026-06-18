@@ -7,7 +7,7 @@
 > **Push 门禁**：`git push` 前自动检查（`.githooks/pre-push` + Cursor `beforeShellExecution`）。技术栈相关文件已改但本文档未同步时，**拒绝 push**；须先执行 stack-changelog。自检：`npm run check:stack-changelog`。
 >
 > **最后更新**：2026-06-18  
-> **文档版本**：v0.2.1  
+> **文档版本**：v0.2.2  
 > **项目阶段**：Phase 1（进行中）— SQLite + Prisma 已接入，posts 持久化
 
 ---
@@ -63,7 +63,8 @@ Phase 4         差异化功能（工具调用、RAG、可选本地 Ollama）
 | 数据库 | SQLite | dev.db（`server/prisma/`） | ✅ 已接入 |
 | ORM | Prisma | ^6.19 | ✅ 已采用 |
 | AI 模型 | JZ Internal one-api | Anthropic + OpenAI-compat 双协议 | ✅ 已接入 |
-| AI Provider 适配 | `server/src/providers/` | stream.ts 路由协议；anthropic.ts / openai.ts | ✅ 已采用 |
+| AI Provider 适配 | `server/src/providers/` | stream.ts 路由协议；anthropic/openai 多模态 | ✅ 已采用 |
+| 文件上传 | multer | ^2.2 | ✅ 已采用 |
 | 部署 | — | — | ⏳ 计划单 VPS + Nginx + pm2 |
 
 ### 2.2 已否决 / 暂缓的选项
@@ -229,7 +230,8 @@ interface PostDetail extends Post {
 | 接口 | 方法 | 说明 |
 |------|------|------|
 | `/api/posts` | POST | 创建文章（需鉴权） |
-| `/api/chat` | POST | 对话（SSE 流式） |
+| `/api/chat` | POST | 对话（SSE 流式，支持 attachments） |
+| `/api/chat/upload` | POST | 图片上传（multer，返回 attachment DTO） |
 | `/api/models` | GET | 可用模型列表 |
 | `/api/features` | GET | 自定义功能列表 |
 | `/api/auth/register` | POST | 注册 |
@@ -396,6 +398,7 @@ interface ProviderConfig {
 | v0.1.0 | 2026-06-18 | 初版：monorepo 脚手架；React+Node 栈；posts 硬编码 API；Roadmap Phase 0～4 | 全项目 | — |
 | v0.2.0 | 2026-06-18 | 接入 SQLite + Prisma 6；Post 模型与迁移；seed 示例文章；posts 改读库；新增 GET /api/posts/:id | server/、docs/ | — |
 | v0.2.1 | 2026-06-18 | Provider 新增 `protocol` 字段与 Anthropic 流式适配层；seed 写入 JZ Internal one-api 模型列表；理由：对接公司网关与 claude-jz.ps1 同源配置，一套 adapter 支持双协议且前端可切换模型 | server/prisma/、server/src/providers/、client/ChatContext、docs/ | — |
+| v0.2.2 | 2026-06-18 | 接入 multer 图片上传与 vision 多模态对话；理由：对话需支持截图/图片分析，服务端统一存储并转 base64 转发上游，避免前端直连模型 | server/、client/、docs/ | — |
 
 ### 变更模板（复制使用）
 
