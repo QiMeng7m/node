@@ -11,7 +11,7 @@ export function toProviderAdmin(provider: Provider) {
   return {
     id: provider.id,
     name: provider.name,
-    type: 'openai-compat',
+    type: provider.protocol === 'anthropic' ? 'anthropic' : 'openai-compat',
     baseURL: provider.baseUrl,
     enabled: provider.enabled,
     apiKeyMasked: maskApiKey(provider.apiKey),

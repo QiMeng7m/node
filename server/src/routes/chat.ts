@@ -9,7 +9,8 @@ import {
 } from '../lib/catalog.js'
 import { sendError } from '../lib/errors.js'
 import { endSse, initSse, writeSse } from '../lib/sse.js'
-import { streamChatCompletions, type UpstreamMessage } from '../providers/openai.js'
+import { streamUpstreamChat } from '../providers/stream.js'
+import type { UpstreamMessage } from '../providers/openai.js'
 import { requireAuth, type AuthedRequest } from '../middleware/auth.js'
 
 export const chatRouter = Router()
@@ -160,7 +161,8 @@ chatRouter.post('/', requireAuth, async (req: AuthedRequest, res) => {
   req.on('close', onClose)
 
   try {
-    for await (const chunk of streamChatCompletions(
+    for await (const chunk of streamUpstreamChat(
+      finalModel.provider.protocol,
       finalModel.provider.baseUrl,
       finalModel.provider.apiKey,
       finalModel.upstreamModelId,
@@ -174,6 +176,10 @@ chatRouter.post('/', requireAuth, async (req: AuthedRequest, res) => {
       if (chunk.usage) {
         usage = chunk.usage
       }
+    }
+
+    if (!assistantContent.trim()) {
+      throw new Error('模型未返回内容，请检查 Provider 协议、Base URL 与模型名称')
     }
 
     await prisma.chatMessage.create({

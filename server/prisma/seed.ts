@@ -6,8 +6,192 @@ const prisma = new PrismaClient()
 const SEED_ADMIN_EMAIL = 'admin@example.com'
 const SEED_ADMIN_PASSWORD = 'admin123456'
 
-const DEFAULT_MODEL_ID = 'default/deepseek-chat'
-const CODER_MODEL_ID = 'default/deepseek-coder'
+const DEFAULT_MODEL_ID = 'default/glm-5.1'
+const CODER_MODEL_ID = 'default/kimi-for-coding'
+
+/** JZ Internal one-api 可用模型（与网关列表一致） */
+const MODEL_SEED = [
+  {
+    id: 'default/deepseek-v4-pro',
+    upstreamModelId: 'deepseek-v4-pro',
+    label: 'DeepSeek V4 Pro',
+    description: 'DeepSeek 旗舰',
+    tags: ['strong'],
+    costTier: 'high',
+    sortOrder: 0,
+  },
+  {
+    id: 'default/glm-5.1',
+    upstreamModelId: 'glm-5.1',
+    label: 'GLM 5.1',
+    description: '智谱 GLM 5.1',
+    tags: ['fast'],
+    costTier: 'low',
+    sortOrder: 1,
+  },
+  {
+    id: 'default/deepseek-v4-flash',
+    upstreamModelId: 'deepseek-v4-flash',
+    label: 'DeepSeek V4 Flash',
+    description: 'DeepSeek 快速版',
+    tags: ['fast'],
+    costTier: 'low',
+    sortOrder: 2,
+  },
+  {
+    id: 'default/glm-5.2',
+    upstreamModelId: 'glm-5.2',
+    label: 'GLM 5.2',
+    description: '智谱 GLM 5.2',
+    tags: ['strong'],
+    costTier: 'low',
+    sortOrder: 3,
+  },
+  {
+    id: 'default/mimo-v2.5-pro',
+    upstreamModelId: 'mimo-v2.5-pro',
+    label: 'MiMo V2.5 Pro',
+    description: 'MiMo 增强版',
+    tags: ['strong'],
+    costTier: 'low',
+    sortOrder: 4,
+  },
+  {
+    id: 'default/gpt-5.5',
+    upstreamModelId: 'gpt-5.5',
+    label: 'GPT 5.5',
+    description: 'OpenAI GPT 5.5',
+    tags: ['strong'],
+    costTier: 'high',
+    sortOrder: 5,
+  },
+  {
+    id: 'default/glm-5-turbo',
+    upstreamModelId: 'glm-5-turbo',
+    label: 'GLM 5 Turbo',
+    description: '智谱 GLM 5 Turbo',
+    tags: ['fast'],
+    costTier: 'low',
+    sortOrder: 6,
+  },
+  {
+    id: 'default/claude-opus-4-7',
+    upstreamModelId: 'claude-opus-4-7',
+    label: 'Claude Opus 4.7',
+    description: 'Anthropic Opus 4.7',
+    tags: ['strong'],
+    costTier: 'high',
+    sortOrder: 7,
+  },
+  {
+    id: 'default/claude-opus-4-8',
+    upstreamModelId: 'claude-opus-4-8',
+    label: 'Claude Opus 4.8',
+    description: 'Anthropic Opus 4.8',
+    tags: ['strong'],
+    costTier: 'high',
+    sortOrder: 8,
+  },
+  {
+    id: 'default/minimax-m2.7-highspeed',
+    upstreamModelId: 'MiniMax-M2.7-highspeed',
+    label: 'MiniMax M2.7 Highspeed',
+    description: 'MiniMax 高速版',
+    tags: ['fast'],
+    costTier: 'low',
+    sortOrder: 9,
+  },
+  {
+    id: 'default/mimo-v2.5',
+    upstreamModelId: 'mimo-v2.5',
+    label: 'MiMo V2.5',
+    description: 'MiMo 标准版',
+    tags: ['fast'],
+    costTier: 'low',
+    sortOrder: 10,
+  },
+  {
+    id: 'default/kimi-k2.6',
+    upstreamModelId: 'kimi-k2.6',
+    label: 'Kimi K2.6',
+    description: 'Kimi 对话模型',
+    tags: ['strong'],
+    costTier: 'low',
+    sortOrder: 11,
+  },
+  {
+    id: 'default/kimi-for-coding',
+    upstreamModelId: 'kimi-for-coding',
+    label: 'Kimi for Coding',
+    description: 'Kimi 代码专用',
+    tags: ['code'],
+    costTier: 'low',
+    sortOrder: 12,
+  },
+  {
+    id: 'default/claude-sonnet-4-6',
+    upstreamModelId: 'claude-sonnet-4-6',
+    label: 'Claude Sonnet 4.6',
+    description: 'Anthropic Sonnet 4.6',
+    tags: ['strong'],
+    costTier: 'high',
+    sortOrder: 13,
+  },
+  {
+    id: 'default/glm-4.5-air',
+    upstreamModelId: 'glm-4.5-air',
+    label: 'GLM 4.5 Air',
+    description: '智谱 GLM 4.5 Air',
+    tags: ['cheap', 'fast'],
+    costTier: 'low',
+    sortOrder: 14,
+  },
+  {
+    id: 'default/cursor-claude-opus-4-7-max-fast',
+    upstreamModelId: 'cursor-claude-opus-4-7-max-fast',
+    label: 'Cursor Claude Opus 4.7 Max Fast',
+    description: 'Cursor 代码加速',
+    tags: ['code', 'fast'],
+    costTier: 'high',
+    sortOrder: 15,
+  },
+  {
+    id: 'default/mimo-v2-pro',
+    upstreamModelId: 'mimo-v2-pro',
+    label: 'MiMo V2 Pro',
+    description: 'MiMo Pro',
+    tags: ['strong'],
+    costTier: 'low',
+    sortOrder: 16,
+  },
+  {
+    id: 'default/minimax-m2.7',
+    upstreamModelId: 'MiniMax-M2.7',
+    label: 'MiniMax M2.7',
+    description: 'MiniMax 标准版',
+    tags: ['fast'],
+    costTier: 'low',
+    sortOrder: 17,
+  },
+  {
+    id: 'default/claude-fable-5',
+    upstreamModelId: 'claude-fable-5',
+    label: 'Claude Fable 5',
+    description: 'Anthropic Fable 5',
+    tags: ['strong'],
+    costTier: 'high',
+    sortOrder: 18,
+  },
+  {
+    id: 'default/glm-4.7',
+    upstreamModelId: 'glm-4.7',
+    label: 'GLM 4.7',
+    description: '智谱 GLM 4.7',
+    tags: ['fast'],
+    costTier: 'low',
+    sortOrder: 19,
+  },
+] as const
 
 const FEATURE_SEED = [
   {
@@ -127,10 +311,17 @@ async function seedFeatures() {
 }
 
 async function seedProviderFromEnv() {
-  const apiKey = process.env.LLM_API_KEY?.trim()
-  const baseUrl = process.env.LLM_BASE_URL?.trim() || 'https://api.deepseek.com/v1'
+  const apiKey =
+    process.env.ANTHROPIC_API_KEY?.trim() || process.env.LLM_API_KEY?.trim()
+  const baseUrl =
+    process.env.ANTHROPIC_BASE_URL?.trim() ||
+    process.env.LLM_BASE_URL?.trim()?.replace(/\/v1\/?$/, '') ||
+    'https://api.deepseek.com'
+  const protocol =
+    process.env.LLM_PROTOCOL?.trim() ||
+    (process.env.ANTHROPIC_BASE_URL?.trim() ? 'anthropic' : 'openai-compat')
   if (!apiKey) {
-    console.log('LLM_API_KEY 未配置，跳过 Provider/模型种子（模型列表将为空）')
+    console.log('ANTHROPIC_API_KEY / LLM_API_KEY 未配置，跳过 Provider/模型种子')
     return
   }
 
@@ -141,73 +332,53 @@ async function seedProviderFromEnv() {
       name: process.env.LLM_PROVIDER_NAME?.trim() || 'Default LLM',
       baseUrl,
       apiKey,
+      protocol,
       enabled: true,
     },
     update: {
       name: process.env.LLM_PROVIDER_NAME?.trim() || 'Default LLM',
       baseUrl,
       apiKey,
+      protocol,
       enabled: true,
     },
   })
 
-  const chatUpstream = process.env.LLM_MODEL?.trim() || 'deepseek-chat'
-  const coderUpstream = process.env.LLM_CODER_MODEL?.trim() || 'deepseek-coder'
+  // upstreamModelId 与 claude-jz.ps1 中 $env:ANTHROPIC_MODEL 取值一致
+  const defaultRecommended =
+    process.env.ANTHROPIC_MODEL?.trim() || process.env.LLM_MODEL?.trim() || 'glm-5.1'
 
-  await prisma.aiModel.upsert({
-    where: { id: DEFAULT_MODEL_ID },
-    create: {
-      id: DEFAULT_MODEL_ID,
+  for (const model of MODEL_SEED) {
+    const recommended = model.upstreamModelId === defaultRecommended
+    const tags = JSON.stringify([...model.tags])
+    const base = {
       providerId: provider.id,
-      upstreamModelId: chatUpstream,
-      label: 'DeepSeek Chat',
-      description: '通用对话，响应快',
-      tags: JSON.stringify(['fast']),
+      upstreamModelId: model.upstreamModelId,
+      label: model.label,
+      description: model.description,
+      tags,
       supportsVision: false,
       supportsStream: true,
-      costTier: 'low',
-      recommended: true,
+      costTier: model.costTier,
+      recommended,
       enabled: true,
-      sortOrder: 0,
-    },
-    update: {
-      providerId: provider.id,
-      upstreamModelId: chatUpstream,
-      label: 'DeepSeek Chat',
-      description: '通用对话，响应快',
-      tags: JSON.stringify(['fast']),
-      recommended: true,
-      enabled: true,
-    },
+      sortOrder: model.sortOrder,
+    }
+    await prisma.aiModel.upsert({
+      where: { id: model.id },
+      create: { id: model.id, ...base },
+      update: base,
+    })
+  }
+
+  const seededIds = MODEL_SEED.map((m) => m.id)
+  await prisma.aiModel.updateMany({
+    where: { providerId: provider.id, id: { notIn: seededIds } },
+    data: { enabled: false },
   })
 
-  await prisma.aiModel.upsert({
-    where: { id: CODER_MODEL_ID },
-    create: {
-      id: CODER_MODEL_ID,
-      providerId: provider.id,
-      upstreamModelId: coderUpstream,
-      label: 'DeepSeek Coder',
-      description: '代码与技术问答',
-      tags: JSON.stringify(['code']),
-      supportsVision: false,
-      supportsStream: true,
-      costTier: 'low',
-      enabled: true,
-      sortOrder: 1,
-    },
-    update: {
-      providerId: provider.id,
-      upstreamModelId: coderUpstream,
-      label: 'DeepSeek Coder',
-      description: '代码与技术问答',
-      tags: JSON.stringify(['code']),
-      enabled: true,
-    },
-  })
-
-  console.log(`Seed LLM provider: ${provider.name} (${baseUrl})`)
-  console.log(`Seed models: ${DEFAULT_MODEL_ID}, ${CODER_MODEL_ID}`)
+  console.log(`Seed LLM provider: ${provider.name} (${baseUrl}, ${protocol})`)
+  console.log(`Seed models: ${MODEL_SEED.length} items (ANTHROPIC_MODEL=${defaultRecommended})`)
 }
 
 async function main() {

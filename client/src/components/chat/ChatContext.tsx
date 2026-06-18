@@ -73,6 +73,11 @@ function createId(): string {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`
 }
 
+/** 前端 localStorage 临时 ID，服务端 cuid 不匹配此格式 */
+function isLocalSessionId(id: string): boolean {
+  return /^\d+-[a-z0-9]+$/.test(id)
+}
+
 function featureEmoji(feature: FeaturePublic | undefined): string {
   return feature?.icon ?? '💬'
 }
@@ -115,7 +120,6 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   const [attachments, setAttachments] = useState<Attachment[]>([])
   const [quotaError, setQuotaError] = useState<string | null>(null)
   const [catalogLoading, setCatalogLoading] = useState(true)
-  const [useApiSessions, setUseApiSessions] = useState(false)
 
   const abortRef = useRef<AbortController | null>(null)
   const storedRef = useRef(storedSessions)
@@ -193,30 +197,24 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     void (async () => {
-      if (user) {
-        try {
-          const res = await apiListSessions({ pageSize: 50 })
-          if (res.items.length) {
-            setUseApiSessions(true)
-            const mapped: StoredSession[] = res.items.map((s) => ({
-              id: s.id,
-              title: s.title,
-              featureId: s.featureId ?? featureId,
-              modelId: s.defaultModelId ?? modelId,
-              messages: [],
-              createdAt: new Date(s.createdAt).getTime(),
-              updatedAt: new Date(s.updatedAt).getTime(),
-            }))
-            persistLocal(mapped)
-            return
-          }
-        } catch {
-          setUseApiSessions(false)
-        }
+      try {
+        const res = await apiListSessions({ pageSize: 50 })
+        const mapped: StoredSession[] = res.items.map((s) => ({
+          id: s.id,
+          title: s.title,
+          featureId: s.featureId ?? featureId,
+          modelId: s.defaultModelId ?? modelId,
+          messages: [],
+          createdAt: new Date(s.createdAt).getTime(),
+          updatedAt: new Date(s.updatedAt).getTime(),
+        }))
+        persistLocal(mapped)
+      } catch {
+        const cached = loadLocalSessions(userId).filter((s) => !isLocalSessionId(s.id))
+        persistLocal(cached)
       }
-      persistLocal(loadLocalSessions(userId))
     })()
-  }, [user, userId, persistLocal])
+  }, [userId, persistLocal])
 
   const sessions = useMemo(
     () => storedSessions.map((s) => toSummary(s, features)),
@@ -294,7 +292,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         return
       }
 
-      if (useApiSessions && user) {
+      if (!isLocalSessionId(id)) {
         try {
           const detail = await apiGetSession(id)
           setFeatureIdState(detail.featureId ?? pickDefaultFeature(features) ?? '')
@@ -326,7 +324,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         setMessages(local.messages)
       }
     },
-    [useApiSessions, user, persistLocal],
+    [features, models, persistLocal],
   )
 
   const stopGeneration = useCallback(() => {
@@ -381,33 +379,37 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       }
 
       let sessionId = currentSessionId
-      if (!sessionId) {
-        sessionId = createId()
-        setCurrentSessionId(sessionId)
-        if (useApiSessions && user) {
-          try {
-            const created = await apiCreateSession({
-              title: '新对话',
-              featureId,
-              defaultModelId: modelId,
-            })
-            sessionId = created.id
-            setCurrentSessionId(sessionId)
-          } catch {
-            // keep local id
+      const needsServerSession = !sessionId || isLocalSessionId(sessionId)
+      if (needsServerSession) {
+        const previousLocalId = sessionId
+        try {
+          const created = await apiCreateSession({
+            title: '新对话',
+            featureId,
+            defaultModelId: modelId,
+          })
+          sessionId = created.id
+          setCurrentSessionId(sessionId)
+        } catch {
+          sessionId = null
+          setCurrentSessionId(null)
+        }
+        if (sessionId) {
+          const now = Date.now()
+          const initial: StoredSession = {
+            id: sessionId,
+            title: '新对话',
+            featureId,
+            modelId,
+            messages: [],
+            createdAt: now,
+            updatedAt: now,
           }
+          const rest = storedRef.current.filter(
+            (s) => s.id !== sessionId && s.id !== previousLocalId,
+          )
+          persistLocal([initial, ...rest])
         }
-        const now = Date.now()
-        const initial: StoredSession = {
-          id: sessionId,
-          title: '新对话',
-          featureId,
-          modelId,
-          messages: [],
-          createdAt: now,
-          updatedAt: now,
-        }
-        persistLocal([initial, ...storedRef.current])
       }
 
       const displayText =
@@ -471,11 +473,29 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         abortRef.current = null
       }
 
+      const syncServerSessionId = (serverId: string) => {
+        sessionId = serverId
+        setCurrentSessionId(serverId)
+        const now = Date.now()
+        const existing = storedRef.current.find((s) => s.id === serverId)
+        const updated: StoredSession = {
+          id: serverId,
+          title: title ?? existing?.title ?? '新对话',
+          featureId,
+          modelId,
+          messages: existing?.messages ?? [],
+          createdAt: existing?.createdAt ?? now,
+          updatedAt: now,
+        }
+        const rest = storedRef.current.filter((s) => s.id !== serverId && !isLocalSessionId(s.id))
+        persistLocal([updated, ...rest])
+      }
+
       let streamOk = false
       try {
         for await (const event of streamChat(
           {
-            sessionId: sessionId ?? undefined,
+            sessionId: sessionId && !isLocalSessionId(sessionId) ? sessionId : undefined,
             model: modelId,
             featureId,
             message: displayText,
@@ -486,7 +506,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         )) {
           switch (event.event) {
             case 'session':
-              setCurrentSessionId(event.data.sessionId)
+              syncServerSessionId(event.data.sessionId)
               break
             case 'content_delta':
               appendChunk(event.data.delta)
@@ -533,8 +553,6 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       streaming,
       quotaRemaining,
       currentSessionId,
-      useApiSessions,
-      user,
       featureId,
       modelId,
       models,
