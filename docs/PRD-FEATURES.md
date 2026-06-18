@@ -2,7 +2,7 @@
 
 > **文档版本**：v1.0  
 > **日期**：2026-06-18  
-> **关联**：[DESIGN.md](./DESIGN.md)（架构） · [API-PROTOCOL.md](./API-PROTOCOL.md)（接口） · [mockups/](./mockups/)（UI 原型）
+> **关联**：[DESIGN.md](./DESIGN.md)（架构） · [API-PROTOCOL.md](./API-PROTOCOL.md)（接口） · [UI-DESIGN-PLAN.md](./UI-DESIGN-PLAN.md)（UI 设计与开发速查） · [mockups/](./mockups/)（UI 原型）
 
 ---
 

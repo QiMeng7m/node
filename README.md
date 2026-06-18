@@ -59,8 +59,9 @@ npm run db:studio    # 可视化查看/编辑数据
 
 ```bash
 npm run install:all
-cd server && cp .env.example .env   # 或手动创建 .env
+cd server && cp .env.example .env   # 含 JWT_SECRET 等
 npm run db:migrate
+npm run db:seed                   # 写入测试账号
 ```
 
 ## API
@@ -68,5 +69,25 @@ npm run db:migrate
 | 接口 | 说明 |
 |------|------|
 | `GET /api/health` | 健康检查 |
+| `POST /api/auth/login` | 登录（邮箱 + 密码） |
+| `GET /api/auth/me` | 当前用户（需 Bearer token） |
+| `POST /api/auth/logout` | 退出（204） |
 | `GET /api/posts` | 文章列表（数据库） |
 | `GET /api/posts/:id` | 文章详情 |
+
+### 测试账号（`npm run db:seed` 写入 SQLite）
+
+| 邮箱 | 密码 | 角色 |
+|------|------|------|
+| `admin@example.com` | `admin123456` | admin |
+| `user@example.com` | `user123456` | user |
+
+密码经 **bcrypt** 哈希存入 `User` 表；登录时查库校验，JWT 含 `tokenVersion`，禁用账号后旧 token 立即失效。
+
+### 认证流程
+
+1. `POST /api/auth/login` — 查库验密 → 签发 JWT
+2. 前端存 `localStorage.accessToken`
+3. 刷新页面 → `GET /api/auth/me` 带 Bearer token → 再次查库返回用户
+4. `POST /api/auth/logout` — 204，前端清除 token
+5. 管理员 `POST /api/admin/users` — 创建真实账号（密码入库哈希）

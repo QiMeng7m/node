@@ -14,3 +14,99 @@ model Post {
   content   String   @default("")
   createdAt DateTime @default(now())
 }
+
+model User {
+  id           String        @id @default(cuid())
+  email        String        @unique
+  passwordHash String
+  role         String        @default("user") // admin | user
+  dailyQuota   Int           @default(100)
+  enabled      Boolean       @default(true)
+  tokenVersion Int           @default(0)
+  lastLoginAt  DateTime?
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  chatSessions ChatSession[]
+}
+
+model Provider {
+  id        String    @id @default(cuid())
+  slug      String    @unique
+  name      String
+  baseUrl   String
+  apiKey    String
+  enabled   Boolean   @default(true)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  models    AiModel[]
+}
+
+model AiModel {
+  id              String   @id
+  providerId      String
+  provider        Provider @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  upstreamModelId String
+  label           String
+  description     String?
+  tags            String   @default("[]")
+  supportsVision  Boolean  @default(false)
+  supportsStream  Boolean  @default(true)
+  costTier        String   @default("low")
+  recommended     Boolean  @default(false)
+  enabled         Boolean  @default(true)
+  sortOrder       Int      @default(0)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([providerId])
+}
+
+model Feature {
+  id             String  @id
+  name           String
+  description    String
+  icon           String?
+  category       String
+  modelPolicy    String
+  defaultModelId String?
+  systemPrompt   String  @default("")
+  uiSchema       String  @default("{}")
+  enabled        Boolean @default(true)
+  sortOrder      Int     @default(0)
+}
+
+model ChatSession {
+  id             String        @id @default(cuid())
+  userId         String
+  user           User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title          String
+  defaultModelId String?
+  featureId      String?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+  messages       ChatMessage[]
+
+  @@index([userId])
+}
+
+model ChatMessage {
+  id          String      @id @default(cuid())
+  sessionId   String
+  session     ChatSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  role        String
+  content     String
+  modelId     String?
+  attachments String?
+  createdAt   DateTime    @default(now())
+
+  @@index([sessionId])
+}
+
+model UsageDaily {
+  id     String @id @default(cuid())
+  userId String
+  date   String
+  count  Int    @default(0)
+
+  @@unique([userId, date])
+}

@@ -1,7 +1,18 @@
 import { Router } from 'express'
 import { prisma } from '../db.js'
+import { adminRouter } from './admin.js'
+import { authRouter } from './auth.js'
+import { catalogRouter } from './catalog.js'
+import { chatRouter } from './chat.js'
+import { sessionsRouter } from './sessions.js'
 
 export const apiRouter = Router()
+
+apiRouter.use('/auth', authRouter)
+apiRouter.use('/admin', adminRouter)
+apiRouter.use('/', catalogRouter)
+apiRouter.use('/chat', chatRouter)
+apiRouter.use('/sessions', sessionsRouter)
 
 apiRouter.get('/health', (_req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() })

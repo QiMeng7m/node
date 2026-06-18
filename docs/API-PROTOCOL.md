@@ -3,7 +3,7 @@
 > **文档版本**：v1.0  
 > **日期**：2026-06-18  
 > **Base URL**：开发 `http://localhost:3000` · 生产 `/api` 经 Nginx 反代  
-> **关联**：[PRD-FEATURES.md](./PRD-FEATURES.md) · [DESIGN.md](./DESIGN.md)
+> **关联**：[PRD-FEATURES.md](./PRD-FEATURES.md) · [UI-DESIGN-PLAN.md](./UI-DESIGN-PLAN.md) · [DESIGN.md](./DESIGN.md)
 
 ---
 
