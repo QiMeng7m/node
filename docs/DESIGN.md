@@ -7,7 +7,7 @@
 > **Push 门禁**：`git push` 前自动检查（`.githooks/pre-push` + Cursor `beforeShellExecution`）。技术栈相关文件已改但本文档未同步时，**拒绝 push**；须先执行 stack-changelog。自检：`npm run check:stack-changelog`。
 >
 > **最后更新**：2026-06-18  
-> **文档版本**：v0.2.0  
+> **文档版本**：v0.2.1  
 > **项目阶段**：Phase 1（进行中）— SQLite + Prisma 已接入，posts 持久化
 
 ---
@@ -62,7 +62,8 @@ Phase 4         差异化功能（工具调用、RAG、可选本地 Ollama）
 | 后端语言 | TypeScript | ^5.9 | ✅ 已采用 |
 | 数据库 | SQLite | dev.db（`server/prisma/`） | ✅ 已接入 |
 | ORM | Prisma | ^6.19 | ✅ 已采用 |
-| AI 模型 | — | — | ⏳ 计划 DeepSeek 等 API + 可选 Ollama |
+| AI 模型 | JZ Internal one-api | Anthropic + OpenAI-compat 双协议 | ✅ 已接入 |
+| AI Provider 适配 | `server/src/providers/` | stream.ts 路由协议；anthropic.ts / openai.ts | ✅ 已采用 |
 | 部署 | — | — | ⏳ 计划单 VPS + Nginx + pm2 |
 
 ### 2.2 已否决 / 暂缓的选项
@@ -168,7 +169,7 @@ server/
 ├── src/
 │   ├── db.ts                  # ✅ 已创建
 │   ├── middleware/            # auth、rateLimit（待建）
-│   ├── providers/             # AI 模型适配（待建）
+│   ├── providers/             # AI 模型适配（anthropic + openai-compat）
 │   ├── features/              # 自定义功能（待建）
 │   └── routes/
 │       ├── api.ts             # 健康检查、posts
@@ -375,7 +376,11 @@ interface ProviderConfig {
 | `PORT` | Phase 0 | 后端端口，默认 3000 |
 | `DATABASE_URL` | Phase 1 | Prisma 连接串 |
 | `JWT_SECRET` | Phase 3 | 鉴权 |
-| `DEEPSEEK_API_KEY` | Phase 2 | 模型 API |
+| `ANTHROPIC_API_KEY` | Phase 2 | JZ Internal / Anthropic 协议网关 Key |
+| `ANTHROPIC_BASE_URL` | Phase 2 | one-api 网关地址（如 `http://one-api.server22.jz`） |
+| `ANTHROPIC_MODEL` | Phase 2 | 默认推荐模型（与 claude-jz.ps1 同源） |
+| `LLM_PROTOCOL` | Phase 2 | `anthropic` \| `openai-compat`；未设时按 Base URL 推断 |
+| `LLM_API_KEY` / `LLM_BASE_URL` | Phase 2 | 兼容旧 OpenAI-compat 变量 |
 | `OLLAMA_BASE_URL` | Phase 4 | 本地模型，如 `http://localhost:11434/v1` |
 
 > 所有密钥：**仅 server 读取，禁止 `VITE_` 前缀暴露到前端。**
@@ -390,6 +395,7 @@ interface ProviderConfig {
 |------|------|----------|----------|--------|
 | v0.1.0 | 2026-06-18 | 初版：monorepo 脚手架；React+Node 栈；posts 硬编码 API；Roadmap Phase 0～4 | 全项目 | — |
 | v0.2.0 | 2026-06-18 | 接入 SQLite + Prisma 6；Post 模型与迁移；seed 示例文章；posts 改读库；新增 GET /api/posts/:id | server/、docs/ | — |
+| v0.2.1 | 2026-06-18 | Provider 新增 `protocol` 字段与 Anthropic 流式适配层；seed 写入 JZ Internal one-api 模型列表；理由：对接公司网关与 claude-jz.ps1 同源配置，一套 adapter 支持双协议且前端可切换模型 | server/prisma/、server/src/providers/、client/ChatContext、docs/ | — |
 
 ### 变更模板（复制使用）
 
