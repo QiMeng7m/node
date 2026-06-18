@@ -52,6 +52,22 @@
   box-shadow: var(--shadow-sm);
 }
 
+.admin-modal-footer,
+.admin-row-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.admin-row-actions {
+  justify-content: flex-start;
+}
+
+.page-header-row .btn {
+  flex-shrink: 0;
+}
+
 .settings-pref-placeholder {
   padding: 16px;
   font-size: 13px;

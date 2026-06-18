@@ -7,6 +7,7 @@ import App from './App.tsx'
 import { AuthProvider } from './context/AuthContext.tsx'
 import { ThemeProvider } from './theme/ThemeProvider.tsx'
 import './index.css'
+import './styles/theme-buttons.css'
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

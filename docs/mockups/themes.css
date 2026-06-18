@@ -261,17 +261,22 @@ html[data-theme="conan"] .logo-mascot.dog {
 }
 
 /* 按钮 */
-html[data-theme="conan"] .btn-primary {
+html[data-theme="conan"] .btn-primary,
+html[data-theme="conan"] .ant-btn-primary:not(:disabled) {
   background: linear-gradient(145deg, #d42a46, #c41e3a);
   box-shadow: 0 4px 0 #9e1830, 0 6px 16px rgba(196, 30, 58, 0.35);
 }
 
-html[data-theme="conan"] .btn-primary:hover {
+html[data-theme="conan"] .btn-primary:hover,
+html[data-theme="conan"] .ant-btn-primary:not(:disabled):hover {
   background: linear-gradient(145deg, #c41e3a, #a01830);
 }
 
-html[data-theme="conan"] .btn-secondary {
+html[data-theme="conan"] .btn-secondary,
+html[data-theme="conan"] .ant-btn-default:not(:disabled) {
   background: linear-gradient(145deg, #2d5a9e, #1e3a6e);
+  color: #fff;
+  border-color: transparent;
   box-shadow: 0 4px 0 #152a52, 0 6px 16px rgba(30, 58, 110, 0.35);
 }
 
@@ -603,7 +608,8 @@ html[data-theme="anime"] .logo-mascot::after {
   display: none;
 }
 
-html[data-theme="anime"] .btn-primary {
+html[data-theme="anime"] .btn-primary,
+html[data-theme="anime"] .ant-btn-primary:not(:disabled) {
   background: linear-gradient(145deg, #c4b5fd, #a78bfa);
   box-shadow: 0 4px 0 #8b5cf6, 0 6px 16px rgba(167, 139, 250, 0.35);
 }
@@ -688,13 +694,20 @@ html[data-theme="guofeng"] .logo-mascot::after {
   display: none;
 }
 
-html[data-theme="guofeng"] .btn-primary {
+html[data-theme="guofeng"] .btn-primary,
+html[data-theme="guofeng"] .ant-btn-primary:not(:disabled) {
   background: linear-gradient(180deg, #dc2626, #b91c1c);
   box-shadow: 0 3px 0 #7f1d1d;
   border-radius: 6px;
 }
 
+html[data-theme="guofeng"] .btn,
+html[data-theme="guofeng"] .ant-btn {
+  border-radius: 6px;
+}
+
 html[data-theme="guofeng"] .btn-ghost,
+html[data-theme="guofeng"] .ant-btn-default:not(:disabled),
 html[data-theme="guofeng"] .card {
   border-radius: var(--radius);
 }
@@ -780,7 +793,8 @@ html[data-theme="neon"] .logo-mascot::after {
   display: none;
 }
 
-html[data-theme="neon"] .btn-primary {
+html[data-theme="neon"] .btn-primary,
+html[data-theme="neon"] .ant-btn-primary:not(:disabled) {
   background: linear-gradient(145deg, #2dd4bf, #14b8a6);
   color: #0f172a;
   box-shadow: 0 0 16px rgba(94, 234, 212, 0.2), 0 2px 0 #0d9488;
