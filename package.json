@@ -1,0 +1,17 @@
+{
+  "name": "my-site",
+  "private": true,
+  "version": "1.0.0",
+  "scripts": {
+    "dev": "concurrently -n client,server -c cyan,green \"npm run dev --prefix client\" \"npm run dev --prefix server\"",
+    "dev:client": "npm run dev --prefix client",
+    "dev:server": "npm run dev --prefix server",
+    "build": "npm run build --prefix client && npm run build --prefix server",
+    "install:all": "npm install && npm install --prefix client && npm install --prefix server",
+    "prepare": "node scripts/setup-githooks.mjs",
+    "check:stack-changelog": "node scripts/check-stack-changelog.mjs"
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.1"
+  }
+}
