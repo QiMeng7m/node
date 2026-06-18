@@ -7,7 +7,20 @@ const SEED_ADMIN_EMAIL = 'admin@example.com'
 const SEED_ADMIN_PASSWORD = 'admin123456'
 
 const DEFAULT_MODEL_ID = 'default/glm-5.1'
+const VISION_MODEL_ID = 'default/glm-5.1'
 const CODER_MODEL_ID = 'default/kimi-for-coding'
+
+/** 支持 Vision 的模型 ID */
+const VISION_MODEL_IDS = new Set([
+  'default/glm-5.1',
+  'default/glm-5.2',
+  'default/gpt-5.5',
+  'default/claude-opus-4-7',
+  'default/claude-opus-4-8',
+  'default/claude-sonnet-4-6',
+  'default/claude-fable-5',
+  'default/kimi-k2.6',
+])
 
 /** JZ Internal one-api 可用模型（与网关列表一致） */
 const MODEL_SEED = [
@@ -350,14 +363,19 @@ async function seedProviderFromEnv() {
 
   for (const model of MODEL_SEED) {
     const recommended = model.upstreamModelId === defaultRecommended
-    const tags = JSON.stringify([...model.tags])
+    const supportsVision = VISION_MODEL_IDS.has(model.id)
+    const tagList = [...model.tags]
+    if (supportsVision && !tagList.includes('vision')) {
+      tagList.push('vision')
+    }
+    const tags = JSON.stringify(tagList)
     const base = {
       providerId: provider.id,
       upstreamModelId: model.upstreamModelId,
       label: model.label,
       description: model.description,
       tags,
-      supportsVision: false,
+      supportsVision,
       supportsStream: true,
       costTier: model.costTier,
       recommended,

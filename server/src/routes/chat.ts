@@ -1,6 +1,15 @@
 import { randomUUID } from 'node:crypto'
 import { Router } from 'express'
+import multer from 'multer'
 import { prisma } from '../db.js'
+import {
+  loadAttachmentImages,
+  parseAttachmentsInput,
+  saveUploadBuffer,
+  validateUploadMime,
+  validateUploadSize,
+  type AttachmentDto,
+} from '../lib/attachments.js'
 import {
   getEnabledFeatureById,
   getEnabledModelById,
@@ -15,19 +24,31 @@ import { requireAuth, type AuthedRequest } from '../middleware/auth.js'
 
 export const chatRouter = Router()
 
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 10 * 1024 * 1024, files: 1 },
+})
+
 interface ChatRequestBody {
   sessionId?: string
   model: string
   featureId?: string
   message: string
   formData?: Record<string, string>
+  attachments?: unknown
 }
 
-function buildUserContent(message: string, formData?: Record<string, string>): string {
+function buildUserContent(
+  message: string,
+  formData?: Record<string, string>,
+  attachments?: AttachmentDto[],
+): string {
   const trimmed = message.trim()
   if (trimmed) return trimmed
 
-  if (!formData) return ''
+  if (!formData) {
+    return attachments?.length ? '请分析这张图片' : ''
+  }
   const lines = Object.entries(formData)
     .filter(([, v]) => v.trim())
     .map(([k, v]) => `${k}: ${v}`)
@@ -38,6 +59,24 @@ function applyPromptTemplate(template: string, formData?: Record<string, string>
   if (!formData) return template
   return template.replace(/\{\{(\w+)\}\}/g, (_, key: string) => formData[key] ?? '')
 }
+
+chatRouter.post('/upload', requireAuth, upload.single('file'), async (req: AuthedRequest, res) => {
+  const file = req.file
+  if (!file) {
+    sendError(res, 400, 'VALIDATION_ERROR', '请上传图片文件')
+    return
+  }
+
+  try {
+    validateUploadMime(file.mimetype)
+    validateUploadSize(file.size)
+    const attachment = await saveUploadBuffer(file.buffer, file.mimetype, file.originalname)
+    res.status(201).json({ attachment })
+  } catch (err) {
+    const message = err instanceof Error ? err.message : '上传失败'
+    sendError(res, 400, 'VALIDATION_ERROR', message)
+  }
+})
 
 chatRouter.post('/', requireAuth, async (req: AuthedRequest, res) => {
   const body = req.body as ChatRequestBody
@@ -72,8 +111,14 @@ chatRouter.post('/', requireAuth, async (req: AuthedRequest, res) => {
     finalModel = locked
   }
 
-  const userContent = buildUserContent(body.message ?? '', body.formData)
-  if (!userContent) {
+  const attachments = parseAttachmentsInput(body.attachments)
+  if (attachments.length && !finalModel.supportsVision) {
+    sendError(res, 400, 'VISION_NOT_SUPPORTED', '当前模型不支持图片，请切换到 vision 模型')
+    return
+  }
+
+  const userContent = buildUserContent(body.message ?? '', body.formData, attachments)
+  if (!userContent && !attachments.length) {
     sendError(res, 400, 'VALIDATION_ERROR', '消息内容不能为空')
     return
   }
@@ -99,7 +144,7 @@ chatRouter.post('/', requireAuth, async (req: AuthedRequest, res) => {
     session = await prisma.chatSession.create({
       data: {
         userId,
-        title: userContent.slice(0, 40) || '新对话',
+        title: (userContent || '图片分析').slice(0, 40) || '新对话',
         defaultModelId: finalModel.id,
         featureId: feature.id,
       },
@@ -107,11 +152,13 @@ chatRouter.post('/', requireAuth, async (req: AuthedRequest, res) => {
     sessionId = session.id
   }
 
+  const storedContent = userContent || (attachments.length ? '（图片）' : '')
   await prisma.chatMessage.create({
     data: {
       sessionId: session.id,
       role: 'user',
-      content: userContent,
+      content: storedContent,
+      attachments: attachments.length ? JSON.stringify(attachments) : null,
     },
   })
 
@@ -132,12 +179,28 @@ chatRouter.post('/', requireAuth, async (req: AuthedRequest, res) => {
   }
 
   for (const msg of history) {
-    if (msg.role === 'user' || msg.role === 'assistant') {
+    if (msg.role !== 'user' && msg.role !== 'assistant') continue
+
+    if (msg.role === 'user' && msg.attachments) {
+      let parsed: AttachmentDto[] = []
+      try {
+        parsed = parseAttachmentsInput(JSON.parse(msg.attachments))
+      } catch {
+        parsed = []
+      }
+      const images = parsed.length ? await loadAttachmentImages(parsed) : []
       upstreamMessages.push({
-        role: msg.role as 'user' | 'assistant',
-        content: msg.content,
+        role: 'user',
+        content: msg.content === '（图片）' && images.length ? '' : msg.content,
+        images: images.length ? images : undefined,
       })
+      continue
     }
+
+    upstreamMessages.push({
+      role: msg.role as 'user' | 'assistant',
+      content: msg.content,
+    })
   }
 
   const assistantMessageId = randomUUID()

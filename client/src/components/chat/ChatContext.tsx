@@ -361,7 +361,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     async (text: string, formData?: Record<string, string>) => {
       const trimmed = text.trim()
       const hasForm = formData && Object.values(formData).some((v) => v.trim())
-      if ((!trimmed && !hasForm) || streaming) return
+      const hasAttachments = attachments.length > 0
+      if ((!trimmed && !hasForm && !hasAttachments) || streaming) return
 
       if (!models.length || !modelId || !models.some((m) => m.id === modelId)) {
         message.error('暂无可用模型，无法发送消息')
@@ -369,6 +370,11 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       }
       if (!featureId) {
         message.error('暂无可用场景')
+        return
+      }
+
+      if (hasAttachments && !supportsVision) {
+        message.warning('当前模型不支持图片，请切换到 vision 模型')
         return
       }
 
@@ -414,6 +420,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
       const displayText =
         trimmed ||
+        (hasAttachments ? '请分析这张图片' : '') ||
         (formData
           ? Object.entries(formData)
               .map(([k, v]) => `${k}: ${v}`)
@@ -559,6 +566,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       features,
       attachments,
       messages,
+      supportsVision,
       setQuotaRemaining,
       persistLocal,
       upsertCurrentSession,

@@ -29,13 +29,13 @@ export default function Composer() {
 
   const handleSend = useCallback(async () => {
     const text = draft.trim()
-    if (!text || streaming || !canChat) return
+    if ((!text && attachments.length === 0) || streaming || !canChat) return
     setDraft('')
     if (textareaRef.current) {
       textareaRef.current.style.height = 'auto'
     }
     await sendMessage(text)
-  }, [draft, streaming, sendMessage, canChat])
+  }, [draft, streaming, sendMessage, canChat, attachments.length])
 
   const handleKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (event.key === 'Enter' && !event.shiftKey) {
@@ -135,7 +135,7 @@ export default function Composer() {
                 ⏹ 停止
               </Button>
             ) : (
-              <Button type="primary" disabled={!draft.trim() || !canChat} onClick={() => void handleSend()}>
+              <Button type="primary" disabled={(!draft.trim() && attachments.length === 0) || !canChat} onClick={() => void handleSend()}>
                 发送 🐾
               </Button>
             )}

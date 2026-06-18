@@ -1,6 +1,31 @@
+export interface VisionImage {
+  mime: string
+  base64: string
+}
+
 export interface UpstreamMessage {
   role: 'system' | 'user' | 'assistant'
   content: string
+  images?: VisionImage[]
+}
+
+type OpenAIContentPart =
+  | { type: 'text'; text: string }
+  | { type: 'image_url'; image_url: { url: string } }
+
+function toOpenAIContent(msg: UpstreamMessage): string | OpenAIContentPart[] {
+  if (!msg.images?.length) return msg.content
+  const parts: OpenAIContentPart[] = []
+  if (msg.content.trim()) {
+    parts.push({ type: 'text', text: msg.content })
+  }
+  for (const img of msg.images) {
+    parts.push({
+      type: 'image_url',
+      image_url: { url: `data:${img.mime};base64,${img.base64}` },
+    })
+  }
+  return parts.length ? parts : msg.content
 }
 
 export interface StreamUsage {
@@ -30,7 +55,10 @@ export async function* streamChatCompletions(
     },
     body: JSON.stringify({
       model: upstreamModelId,
-      messages,
+      messages: messages.map((msg) => ({
+        role: msg.role,
+        content: toOpenAIContent(msg),
+      })),
       stream: true,
       stream_options: { include_usage: true },
       temperature: 0.7,

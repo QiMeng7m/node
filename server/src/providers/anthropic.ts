@@ -1,27 +1,46 @@
 import type { StreamChunk, UpstreamMessage } from './openai.js'
 
-function messagesUrl(baseUrl: string): string {
-  const base = baseUrl.replace(/\/$/, '')
-  if (base.endsWith('/v1')) return `${base}/messages`
-  return `${base}/v1/messages`
+type AnthropicContentPart =
+  | { type: 'text'; text: string }
+  | { type: 'image'; source: { type: 'base64'; media_type: string; data: string } }
+
+function toAnthropicContent(msg: UpstreamMessage): string | AnthropicContentPart[] {
+  if (!msg.images?.length) return msg.content
+  const parts: AnthropicContentPart[] = []
+  for (const img of msg.images) {
+    parts.push({
+      type: 'image',
+      source: { type: 'base64', media_type: img.mime, data: img.base64 },
+    })
+  }
+  if (msg.content.trim()) {
+    parts.push({ type: 'text', text: msg.content })
+  }
+  return parts.length ? parts : msg.content
 }
 
 function splitMessages(messages: UpstreamMessage[]): {
   system?: string
-  messages: { role: 'user' | 'assistant'; content: string }[]
+  messages: { role: 'user' | 'assistant'; content: string | AnthropicContentPart[] }[]
 } {
   let system: string | undefined
-  const rest: { role: 'user' | 'assistant'; content: string }[] = []
+  const rest: { role: 'user' | 'assistant'; content: string | AnthropicContentPart[] }[] = []
 
   for (const msg of messages) {
     if (msg.role === 'system') {
       system = system ? `${system}\n\n${msg.content}` : msg.content
     } else {
-      rest.push({ role: msg.role, content: msg.content })
+      rest.push({ role: msg.role, content: toAnthropicContent(msg) })
     }
   }
 
   return { system, messages: rest }
+}
+
+function messagesUrl(baseUrl: string): string {
+  const base = baseUrl.replace(/\/$/, '')
+  if (base.endsWith('/v1')) return `${base}/messages`
+  return `${base}/v1/messages`
 }
 
 type AnthropicPayload = {
