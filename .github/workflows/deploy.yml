@@ -1,84 +1,36 @@
-name: Deploy Backend
+name: Deploy Node.js App to Alibaba Cloud
 
 on:
   push:
-    branches: [ dev ]
-
-env:
-  BACKEND_DEPLOY_PATH: ${{ vars.BACKEND_DEPLOY_PATH || '/opt/backend-service' }}
-  BACKEND_STAGING_PATH: ${{ vars.BACKEND_STAGING_PATH || '/tmp/backend-deploy.tgz' }}
-  PM2_APP_NAME: ${{ vars.PM2_APP_NAME || 'backend-service' }}
+    branches: [ dev ]  # 当 main 分支有推送时触发
 
 jobs:
-  deploy-backend:
+  deploy:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
         uses: actions/checkout@v5
 
-      - name: Setup Node.js
+      - name: Set up Node.js
         uses: actions/setup-node@v5
         with:
-          node-version: '22'
-          cache: 'npm'
+          node-version: '22'  # 根据您的项目调整版本
 
-      - name: Build backend
-        run: |
-          npm ci
-          npm run build
+      - name: Install dependencies
+        run: npm ci
 
-      - name: Package backend
-        run: tar czf backend-deploy.tgz dist package.json package-lock.json prisma
+      - name: Build (if needed)
+        run: npm run build  # 如果是 Next.js、NestJS 等需要构建的项目
 
-      - name: Upload backend bundle
-        uses: appleboy/scp-action@v0.1.7
+      - name: Deploy to Alibaba Cloud ECS via SSH
+        uses: appleboy/ssh-action@v1.0.3
         with:
-          host: ${{ secrets.HOST }}
-          username: ${{ secrets.USERNAME }}
-          key: ${{ secrets.DEPLOY_KEY }}
-          source: "backend-deploy.tgz"
-          target: "/tmp/"
-
-      - name: Install, migrate, and restart
-        uses: appleboy/ssh-action@v1.2.0
-        with:
-          host: ${{ secrets.HOST }}
-          username: ${{ secrets.USERNAME }}
-          key: ${{ secrets.DEPLOY_KEY }}
+          host: ${{ secrets.HOST }}        # 您的ECS公网IP
+          username: ${{ secrets.USERNAME }}    # 通常是 root 或 ubuntu
+          key: ${{ secrets.DEPLOY_KEY }}      # 私钥（PEM内容）
+          port: 22
           script: |
-            set -euo pipefail
-            DEPLOY_DIR="${{ env.BACKEND_DEPLOY_PATH }}"
-            STAGING="${{ env.BACKEND_STAGING_PATH }}"
-            PM2_APP="${{ env.PM2_APP_NAME }}"
-
-            if [ ! -d "$DEPLOY_DIR" ]; then
-              echo "ERROR: 部署目录不存在: $DEPLOY_DIR"
-              echo "请先在服务器创建并授权，例如："
-              echo "  sudo mkdir -p $DEPLOY_DIR"
-              echo "  sudo chown $USER:$USER $DEPLOY_DIR"
-              exit 1
-            fi
-
-            if [ ! -f "$DEPLOY_DIR/.env" ]; then
-              echo "ERROR: 缺少 $DEPLOY_DIR/.env（含 DATABASE_URL、JWT_SECRET 等）"
-              echo "请参照 .env.example 在服务器手动创建，勿提交到 git"
-              exit 1
-            fi
-
-            cp "$DEPLOY_DIR/.env" /tmp/my-site-server.env.bak
-            tar xzf "$STAGING" -C "$DEPLOY_DIR"
-            mv /tmp/my-site-server.env.bak "$DEPLOY_DIR/.env"
-
-            cd "$DEPLOY_DIR"
-            npm ci --omit=dev
-            npx --yes prisma@6.19.3 migrate deploy
-            npx --yes prisma@6.19.3 generate
-
-            if pm2 describe "$PM2_APP" > /dev/null 2>&1; then
-              pm2 restart "$PM2_APP" --update-env
-            else
-              pm2 start dist/index.js --name "$PM2_APP" --cwd "$DEPLOY_DIR"
-            fi
-
-            rm -f "$STAGING"
-            curl -sf http://127.0.0.1:3000/api/health
+            cd /home/admin/my-node-backend
+            git pull origin dev
+            npm ci
+            pm2 reload app || pm2 start app.js --name "app"
