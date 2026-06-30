@@ -22,7 +22,7 @@ jobs:
         run: |
           cd client
           npm ci
-          tsc -b && vite build
+          npm run build
 
       - name: Debug - List built files
         run: ls -la client/dist/ || echo "Build failed or dist/ not found!"
