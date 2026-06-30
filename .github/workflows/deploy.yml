@@ -17,10 +17,13 @@ jobs:
           node-version: '22'  # 根据项目需求调整版本
 
       - name: Install dependencies
-        run: npm ci --only=production  # 或 npm install --only=production
+        run: npm ci
 
       - name: Build TypeScript
-        run: npm run build  # 确保 package.json 中有 "build": "tsc" 或类似脚本
+        run: npm run build
+
+      - name: Prune dev dependencies
+        run: npm prune --production
 
       - name: Deploy via SSH
         uses: appleboy/scp-action@v0.1.7
