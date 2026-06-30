@@ -1,8 +1,8 @@
-name: Deploy to Alibaba Cloud ECS (dev branch)
+name: Deploy Backend
 
 on:
   push:
-    branches: [ dev ]  # 仅监听 dev 分支
+    branches: [ dev ]  # 根据您的主分支调整
 
 jobs:
   deploy:
@@ -11,29 +11,35 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Set up Node.js 22
+      - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '22'
-          cache: 'npm'
+          node-version: '22'  # 根据项目需求调整版本
 
       - name: Install dependencies
-        run: npm ci
+        run: npm ci --only=production  # 或 npm install --only=production
 
-      - name: Build (if needed)
-        run: npm run build
-        continue-on-error: true  # 若无 build 脚本则跳过
+      - name: Build TypeScript
+        run: npm run build  # 确保 package.json 中有 "build": "tsc" 或类似脚本
 
       - name: Deploy via SSH
-        uses: appleboy/ssh-action@v1.0.3
+        uses: appleboy/scp-action@v0.1.7
         with:
-          host: ${{ secrets.HOST }}        # 使用您配置的 HOST
-          username: ${{ secrets.USERNAME }} # 应为 admin
-          key: ${{ secrets.DEPLOY_KEY }}   # 您的私钥内容
-          port: 22
+          host: ${{ secrets.HOST }}
+          username: ${{ secrets.USERNAME }}
+          key: ${{ secrets.DEPLOY_KEY }}
+          source: "dist/,package.json,package-lock.json"
+          target: "/home/ubuntu/my-node-app"
+          strip_components: 1
+
+      - name: Restart service (optional)
+        uses: appleboy/ssh-action@v0.1.10
+        with:
+          host: ${{ secrets.HOST }}
+          username: ${{ secrets.USERNAME }}
+          key: ${{ secrets.DEPLOY_KEY }}
           script: |
-            cd /home/admin/my-node-backend
-            git pull origin dev
-            npm ci --production
-            npm run build || echo "No build required"
-            pm2 reload my-app || pm2 start app.js --name "my-app"
+            cd /home/ubuntu/my-node-app
+            npm install --only=production
+            pkill -f "node dist/index.js" || true  # 先杀掉旧进程（可选）
+            nohup node dist/index.js > index.log 2>&1 &
