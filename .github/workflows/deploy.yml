@@ -22,18 +22,14 @@ jobs:
       - name: Build TypeScript
         run: npm run build
 
-      - name: Prune dev dependencies
-        run: npm prune --production
-
       - name: Deploy via SSH
         uses: appleboy/scp-action@v0.1.7
         with:
           host: ${{ secrets.HOST }}
           username: ${{ secrets.USERNAME }}
           key: ${{ secrets.DEPLOY_KEY }}
-          source: "dist/*"
+          source: "dist,package.json,package-lock.json,prisma"
           target: "/var/www/my-backend"
-          strip_components: 1
 
       - name: Restart service (optional)
         uses: appleboy/ssh-action@v0.1.10
@@ -43,6 +39,7 @@ jobs:
           key: ${{ secrets.DEPLOY_KEY }}
           script: |
             cd /var/www/my-backend
-            npm install --only=production
-            pkill -f "node dist/index.js" || true  # 先杀掉旧进程（可选）
+            npm ci --omit=dev
+            npx prisma generate
+            pkill -f "node dist/index.js" || true
             nohup node dist/index.js > index.log 2>&1 &
