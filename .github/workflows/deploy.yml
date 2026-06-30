@@ -54,12 +54,11 @@ jobs:
           npm run build
       - name: Debug - List backend built files
         run: ls -la server/dist/ || echo "Backend build failed or dist/ not found!"
-      - name: Deploy backend to server via SCP
+      - name: Test SSH Connection (Temporary)
         uses: appleboy/scp-action@v0.1.7
         with:
           host: ${{ secrets.HOST }}
           username: ${{ secrets.USERNAME }}
           key: ${{ secrets.DEPLOY_KEY }}
-          source: "server/dist/*"
-          target: "/opt/backend-service"
-          strip_components: 1
+          source: "client/dist/index.html"  # 复用前端文件
+          target: "/tmp/test-deploy/"
