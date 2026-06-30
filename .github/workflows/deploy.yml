@@ -2,7 +2,7 @@ name: Deploy Node.js App to Alibaba Cloud
 
 on:
   push:
-    branches: [ dev ]  # 当 main 分支有推送时触发
+    branches: [ dev ]
 
 jobs:
   deploy:
@@ -14,23 +14,57 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v5
         with:
-          node-version: '22'  # 根据您的项目调整版本
+          node-version: '22'
+          cache: npm
 
       - name: Install dependencies
         run: npm ci
 
-      - name: Build (if needed)
-        run: npm run build  # 如果是 Next.js、NestJS 等需要构建的项目
+      - name: Build (validate before deploy)
+        run: npm run build
 
       - name: Deploy to Alibaba Cloud ECS via SSH
         uses: appleboy/ssh-action@v1.0.3
         with:
-          host: ${{ secrets.HOST }}        # 您的ECS公网IP
-          username: ${{ secrets.USERNAME }}    # 通常是 root 或 ubuntu
-          key: ${{ secrets.DEPLOY_KEY }}      # 私钥（PEM内容）
+          host: ${{ secrets.HOST }}
+          username: ${{ secrets.USERNAME }}
+          key: ${{ secrets.DEPLOY_KEY }}
           port: 22
+          script_stop: true
           script: |
-            cd /home/admin/my-node-backend
-            git pull origin dev
+            set -euo pipefail
+
+            APP_DIR="/home/admin/my-node-backend"
+            REPO="https://github.com/${{ github.repository }}.git"
+            BRANCH="dev"
+
+            # 首次部署：目录不存在或不是 git 仓库时 clone
+            if [ ! -d "$APP_DIR/.git" ]; then
+              mkdir -p "$(dirname "$APP_DIR")"
+              if [ -d "$APP_DIR" ] && [ "$(ls -A "$APP_DIR" 2>/dev/null)" ]; then
+                echo "ERROR: $APP_DIR exists but is not a git repo."
+                echo "Remove it or run: git clone -b $BRANCH $REPO $APP_DIR"
+                exit 1
+              fi
+              git clone -b "$BRANCH" "$REPO" "$APP_DIR"
+            fi
+
+            cd "$APP_DIR"
+            git fetch origin "$BRANCH"
+            git reset --hard "origin/$BRANCH"
+
+            if [ ! -f package-lock.json ]; then
+              echo "ERROR: package-lock.json missing after git sync"
+              exit 1
+            fi
+
             npm ci
-            pm2 reload app || pm2 start app.js --name "app"
+            npm run build
+            npx prisma migrate deploy
+
+            if ! command -v pm2 >/dev/null 2>&1; then
+              npm install -g pm2
+            fi
+
+            pm2 reload app 2>/dev/null || pm2 start npm --name app -- start
+            pm2 save
