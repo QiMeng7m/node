@@ -1,8 +1,8 @@
-name: Deploy to Alibaba Cloud ECS
+name: Deploy Frontend
 
 on:
   push:
-    branches: [ dev ]  # 根据您的主分支调整
+    branches: [ dev ]
 
 jobs:
   deploy:
@@ -11,22 +11,28 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Deploy via SCP
-        uses: appleboy/scp-action@v0.1.7
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
         with:
-          host: ${{ secrets.HOST }}          # 您的ECS公网IP
-          username: ${{ secrets.USERNAME }}  # 通常是 admin 或 root
-          key: ${{ secrets.DEPLOY_KEY }}     # 刚才添加的私钥
-          port: 22
-          source: "*.html"                   # 部署HTML文件
-          target: "/usr/share/nginx/html/"
-          rm: true                           # 删除目标目录中不在source中的文件
+          node-version: '18'
+          cache: 'npm'
+          cache-dependency-path: client/package-lock.json
 
-      - name: Reload Nginx
-        uses: appleboy/ssh-action@v1.0.3
+      - name: Build frontend
+        run: |
+          cd client
+          npm ci
+          tsc -b && vite build
+
+      - name: Debug - List built files
+        run: ls -la client/dist/ || echo "Build failed or dist/ not found!"
+
+      - name: Deploy to server via SCP
+        uses: appleboy/scp-action@v0.1.7
         with:
           host: ${{ secrets.HOST }}
           username: ${{ secrets.USERNAME }}
           key: ${{ secrets.DEPLOY_KEY }}
-          port: 22
-          script: sudo nginx -s reload
+          source: "client/dist/*"
+          target: "/usr/share/nginx/html/"
+          strip_components: 1
