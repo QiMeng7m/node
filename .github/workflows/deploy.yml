@@ -1,73 +1,84 @@
-name: Deploy Frontend
+name: Deploy Backend
 
 on:
   push:
     branches: [ dev ]
 
+env:
+  BACKEND_DEPLOY_PATH: ${{ vars.BACKEND_DEPLOY_PATH || '/opt/backend-service' }}
+  BACKEND_STAGING_PATH: ${{ vars.BACKEND_STAGING_PATH || '/tmp/backend-deploy.tgz' }}
+  PM2_APP_NAME: ${{ vars.PM2_APP_NAME || 'backend-service' }}
+
 jobs:
-  deploy:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v5
-        with:
-          fetch-depth: 0
-      - name: Setup Node.js
-        uses: actions/setup-node@v5
-        with:
-          node-version: '22'
-          cache: 'npm'
-          cache-dependency-path: client/package-lock.json
-
-      - name: Build frontend
-        run: |
-          cd client
-          npm ci
-          npm run build
-
-      - name: Debug - List built files
-        run: ls -la client/dist/ || echo "Build failed or dist/ not found!"
-
-      - name: Deploy to server via SCP
-        uses: appleboy/scp-action@v0.1.7
-        with:
-          host: ${{ secrets.HOST }}
-          username: ${{ secrets.USERNAME }}
-          key: ${{ secrets.DEPLOY_KEY }}
-          source: "client/dist/*"
-          target: "/usr/share/nginx/html/"
-          strip_components: 1
   deploy-backend:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
         uses: actions/checkout@v5
+
       - name: Setup Node.js
         uses: actions/setup-node@v5
         with:
           node-version: '22'
           cache: 'npm'
-          cache-dependency-path: server/package-lock.json
+
       - name: Build backend
         run: |
-          cd server
           npm ci
           npm run build
-      - name: Debug - Check server directory after build
-        run: |
-          ls -la server/ || echo "server/ not found!"
-          ls -la server/dist/ || echo "server/dist/ not found!"
-      - name: Debug - List backend built files
-        run: ls -la server/dist/ || echo "Backend build failed or dist/ not found!"
-      - name: Debug - Check tsconfig.json existence
-        run: |
-          ls -la server/
-          cat server/tsconfig.json || echo "tsconfig.json NOT FOUND!"
-      - name: Test SSH Connection (Temporary)
+
+      - name: Package backend
+        run: tar czf backend-deploy.tgz dist package.json package-lock.json prisma
+
+      - name: Upload backend bundle
         uses: appleboy/scp-action@v0.1.7
         with:
           host: ${{ secrets.HOST }}
           username: ${{ secrets.USERNAME }}
           key: ${{ secrets.DEPLOY_KEY }}
-          source: "client/dist/index.html"  # 复用前端文件
-          target: "/tmp/test-deploy/"
+          source: "backend-deploy.tgz"
+          target: "/tmp/"
+
+      - name: Install, migrate, and restart
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.HOST }}
+          username: ${{ secrets.USERNAME }}
+          key: ${{ secrets.DEPLOY_KEY }}
+          script: |
+            set -euo pipefail
+            DEPLOY_DIR="${{ env.BACKEND_DEPLOY_PATH }}"
+            STAGING="${{ env.BACKEND_STAGING_PATH }}"
+            PM2_APP="${{ env.PM2_APP_NAME }}"
+
+            if [ ! -d "$DEPLOY_DIR" ]; then
+              echo "ERROR: 部署目录不存在: $DEPLOY_DIR"
+              echo "请先在服务器创建并授权，例如："
+              echo "  sudo mkdir -p $DEPLOY_DIR"
+              echo "  sudo chown $USER:$USER $DEPLOY_DIR"
+              exit 1
+            fi
+
+            if [ ! -f "$DEPLOY_DIR/.env" ]; then
+              echo "ERROR: 缺少 $DEPLOY_DIR/.env（含 DATABASE_URL、JWT_SECRET 等）"
+              echo "请参照 .env.example 在服务器手动创建，勿提交到 git"
+              exit 1
+            fi
+
+            cp "$DEPLOY_DIR/.env" /tmp/my-site-server.env.bak
+            tar xzf "$STAGING" -C "$DEPLOY_DIR"
+            mv /tmp/my-site-server.env.bak "$DEPLOY_DIR/.env"
+
+            cd "$DEPLOY_DIR"
+            npm ci --omit=dev
+            npx --yes prisma@6.19.3 migrate deploy
+            npx --yes prisma@6.19.3 generate
+
+            if pm2 describe "$PM2_APP" > /dev/null 2>&1; then
+              pm2 restart "$PM2_APP" --update-env
+            else
+              pm2 start dist/index.js --name "$PM2_APP" --cwd "$DEPLOY_DIR"
+            fi
+
+            rm -f "$STAGING"
+            curl -sf http://127.0.0.1:3000/api/health
