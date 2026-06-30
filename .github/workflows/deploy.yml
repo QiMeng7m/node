@@ -52,8 +52,16 @@ jobs:
           cd server
           npm ci
           npm run build
+      - name: Debug - Check server directory after build
+        run: |
+          ls -la server/ || echo "server/ not found!"
+          ls -la server/dist/ || echo "server/dist/ not found!"
       - name: Debug - List backend built files
         run: ls -la server/dist/ || echo "Backend build failed or dist/ not found!"
+      - name: Debug - Check tsconfig.json existence
+        run: |
+          ls -la server/
+          cat server/tsconfig.json || echo "tsconfig.json NOT FOUND!"
       - name: Test SSH Connection (Temporary)
         uses: appleboy/scp-action@v0.1.7
         with:
