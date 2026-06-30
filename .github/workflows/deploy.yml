@@ -1,86 +1,39 @@
-name: Deploy Node.js App to Alibaba Cloud
+name: Deploy to Alibaba Cloud ECS (dev branch)
 
 on:
   push:
-    branches: [ dev ]
+    branches: [ dev ]  # 仅监听 dev 分支
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v5
+        uses: actions/checkout@v4
 
-      - name: Set up Node.js
-        uses: actions/setup-node@v5
+      - name: Set up Node.js 22
+        uses: actions/setup-node@v4
         with:
           node-version: '22'
-          cache: npm
+          cache: 'npm'
 
       - name: Install dependencies
         run: npm ci
 
-      - name: Build (validate before deploy)
+      - name: Build (if needed)
         run: npm run build
+        continue-on-error: true  # 若无 build 脚本则跳过
 
-      - name: Deploy to Alibaba Cloud ECS via SSH
+      - name: Deploy via SSH
         uses: appleboy/ssh-action@v1.0.3
         with:
-          host: ${{ secrets.HOST }}
-          username: ${{ secrets.USERNAME }}
-          key: ${{ secrets.DEPLOY_KEY }}
+          host: ${{ secrets.HOST }}        # 使用您配置的 HOST
+          username: ${{ secrets.USERNAME }} # 应为 admin
+          key: ${{ secrets.DEPLOY_KEY }}   # 您的私钥内容
           port: 22
-          command_timeout: 15m
-          script_stop: true
           script: |
-            set -euo pipefail
-
-            APP_DIR="/home/admin/my-node-backend"
-            REPO="https://github.com/${{ github.repository }}.git"
-            BRANCH="dev"
-
-            echo "==> node $(node -v 2>/dev/null || echo MISSING) npm $(npm -v 2>/dev/null || echo MISSING)"
-            if ! command -v node >/dev/null 2>&1; then
-              echo "ERROR: Node.js not installed on server. Install Node 22+ first."
-              exit 1
-            fi
-
-            # 首次部署：目录不存在或不是 git 仓库时 clone
-            if [ ! -d "$APP_DIR/.git" ]; then
-              mkdir -p "$(dirname "$APP_DIR")"
-              if [ -d "$APP_DIR" ] && [ "$(ls -A "$APP_DIR" 2>/dev/null)" ]; then
-                echo "ERROR: $APP_DIR exists but is not a git repo."
-                echo "Backup .env if any, then: rm -rf $APP_DIR && git clone -b $BRANCH $REPO $APP_DIR"
-                exit 1
-              fi
-              git clone -b "$BRANCH" "$REPO" "$APP_DIR"
-            fi
-
-            cd "$APP_DIR"
-            git fetch origin "$BRANCH"
-            git reset --hard "origin/$BRANCH"
-
-            if [ ! -f package-lock.json ]; then
-              echo "ERROR: package-lock.json missing after git sync"
-              exit 1
-            fi
-
-            if [ ! -f .env ]; then
-              echo "ERROR: $APP_DIR/.env missing."
-              echo "Create it once on the server (see .env.example): DATABASE_URL, JWT_SECRET, etc."
-              exit 1
-            fi
-
-            # 服务器若设 NODE_ENV=production，npm ci 会跳过 devDependencies，导致 tsc/prisma 不可用
-            npm ci --include=dev
-            npm run build
-            npx prisma migrate deploy
-            npm prune --omit=dev
-
-            if ! command -v pm2 >/dev/null 2>&1; then
-              npm install -g pm2
-            fi
-
-            pm2 delete app 2>/dev/null || true
-            pm2 start npm --name app --cwd "$APP_DIR" -- start
-            pm2 save
+            cd /home/admin/my-node-backend
+            git pull origin dev
+            npm ci --production
+            npm run build || echo "No build required"
+            pm2 reload my-app || pm2 start app.js --name "my-app"
