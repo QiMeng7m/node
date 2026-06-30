@@ -1,0 +1,32 @@
+name: Deploy to Alibaba Cloud ECS
+
+on:
+  push:
+    branches: [ dev ]  # 根据您的主分支调整
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Deploy via SCP
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.HOST }}          # 您的ECS公网IP
+          username: ${{ secrets.USERNAME }}  # 通常是 admin 或 root
+          key: ${{ secrets.DEPLOY_KEY }}     # 刚才添加的私钥
+          port: 22
+          source: "*.html"                   # 部署HTML文件
+          target: "/usr/share/nginx/html/"
+          rm: true                           # 删除目标目录中不在source中的文件
+
+      - name: Reload Nginx
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.HOST }}
+          username: ${{ secrets.USERNAME }}
+          key: ${{ secrets.DEPLOY_KEY }}
+          port: 22
+          script: sudo nginx -s reload
