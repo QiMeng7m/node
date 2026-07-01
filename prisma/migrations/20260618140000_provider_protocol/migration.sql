@@ -1,2 +1,2 @@
--- AlterTable
-ALTER TABLE "Provider" ADD COLUMN "protocol" TEXT NOT NULL DEFAULT 'openai-compat';
+-- protocol 列已在 20260618130000_catalog_chat 的 Provider 建表语句中包含。
+-- 保留此迁移条目以兼容已记录该版本的本地/历史库，新环境无需额外变更。

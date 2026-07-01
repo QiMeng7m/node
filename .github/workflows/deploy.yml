@@ -43,6 +43,7 @@ jobs:
             git pull origin dev
             npm ci --omit=dev
             npx prisma generate
+            npx prisma migrate deploy
             pkill -f "[n]ode dist/index.js" || true
             sleep 2
             nohup node dist/index.js > index.log 2>&1 </dev/null &
