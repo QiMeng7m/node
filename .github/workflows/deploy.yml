@@ -37,9 +37,14 @@ jobs:
           host: ${{ secrets.HOST }}
           username: ${{ secrets.USERNAME }}
           key: ${{ secrets.DEPLOY_KEY }}
+          command_timeout: 15m
           script: |
+            set -e
             cd /var/www/my-backend
             npm ci --omit=dev
             npx prisma generate
-            pkill -f "node dist/index.js" || true
-            nohup node dist/index.js > index.log 2>&1 &
+            pkill -f "[n]ode dist/index.js" || true
+            sleep 1
+            setsid node dist/index.js > index.log 2>&1 < /dev/null &
+            disown
+            exit 0
