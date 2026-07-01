@@ -31,13 +31,13 @@ jobs:
           source: "dist,package.json,package-lock.json,prisma"
           target: "/var/www/my-backend"
 
-      - name: Restart service (optional)
+      # 步骤1：部署应用（日常使用）
+      - name: Deploy app
         uses: appleboy/ssh-action@v0.1.10
         with:
           host: ${{ secrets.HOST }}
           username: ${{ secrets.USERNAME }}
           key: ${{ secrets.DEPLOY_KEY }}
-          command_timeout: 15m
           script: |
             set -e
             cd /var/www/my-backend
@@ -45,6 +45,16 @@ jobs:
             npx prisma generate
             pkill -f "[n]ode dist/index.js" || true
             sleep 1
-            setsid node dist/index.js > index.log 2>&1 < /dev/null &
-            disown
+            nohup node dist/index.js > index.log 2>&1 &
             exit 0
+
+      # 步骤2：仅在需要时才启用（例如手动触发或特定条件）
+      - name: Restart server (optional)
+        if: github.event.inputs.restart_server == 'true'  # 示例条件
+        uses: appleboy/ssh-action@v0.1.10
+        with:
+          host: ${{ secrets.HOST }}
+          username: ${{ secrets.USERNAME }}
+          key: ${{ secrets.DEPLOY_KEY }}
+          script: |
+            nohup sh -c 'sleep 5 && sudo reboot' > /dev/null 2>&1 &
