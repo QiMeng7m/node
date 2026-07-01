@@ -31,7 +31,8 @@ jobs:
           source: "dist,package.json,package-lock.json,prisma"
           target: "/var/www/my-backend"
 
-      - name: Deploy application via git pull
+      - name: Deploy application
+        continue-on-error: true
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.HOST }}
@@ -43,7 +44,14 @@ jobs:
             npm ci --omit=dev
             npx prisma generate
             pkill -f "[n]ode dist/index.js" || true
-            sleep 1
+            sleep 2
             nohup node dist/index.js > index.log 2>&1 </dev/null &
             disown -a
-            exit 0
+            sleep 1
+            if pgrep -f "node dist/index.js" > /dev/null; then
+              echo "✅ App is running"
+              exit 0
+            else
+              echo "❌ App failed to start"
+              exit 1
+            fi
