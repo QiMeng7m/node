@@ -38,6 +38,7 @@ jobs:
           host: ${{ secrets.HOST }}
           username: ${{ secrets.USERNAME }}
           key: ${{ secrets.DEPLOY_KEY }}
+          timeout: 60s   # 增加超时时间
           script: |
             set -e
             cd /var/www/my-backend
