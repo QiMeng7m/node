@@ -31,34 +31,19 @@ jobs:
           source: "dist,package.json,package-lock.json,prisma"
           target: "/var/www/my-backend"
 
-      # 步骤1：部署应用（日常使用）
-      - name: Upload code
-        uses: appleboy/scp-action@v0.1.5
+      - name: Deploy application via git pull
+        uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.HOST }}
           username: ${{ secrets.USERNAME }}
           key: ${{ secrets.DEPLOY_KEY }}
-          source: "."
-          target: "/var/www/my-backend"
-
-      - name: Run deployment
-        uses: appleboy/ssh-action@v1.0.3
-        with:
           script: |
             cd /var/www/my-backend
+            git pull origin dev
             npm ci --omit=dev
             npx prisma generate
             pkill -f "[n]ode dist/index.js" || true
-            nohup node dist/index.js > index.log 2>&1 </dev/null & disown -a
+            sleep 1
+            nohup node dist/index.js > index.log 2>&1 </dev/null &
+            disown -a
             exit 0
-
-      # 步骤2：仅在需要时才启用（例如手动触发或特定条件）
-      # - name: Restart server (optional)
-      #   if: github.event.inputs.restart_server == 'true'  # 示例条件
-      #   uses: appleboy/ssh-action@v0.1.10
-      #   with:
-      #     host: ${{ secrets.HOST }}
-      #     username: ${{ secrets.USERNAME }}
-      #     key: ${{ secrets.DEPLOY_KEY }}
-      #     script: |
-      #       nohup sh -c 'sleep 5 && sudo reboot' > /dev/null 2>&1 &
