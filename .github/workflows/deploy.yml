@@ -33,7 +33,7 @@ jobs:
 
       # 步骤1：部署应用（日常使用）
       - name: Deploy app
-        uses: appleboy/ssh-action@v0.1.10
+        uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.HOST }}
           username: ${{ secrets.USERNAME }}
