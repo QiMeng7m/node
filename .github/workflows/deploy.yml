@@ -50,12 +50,12 @@ jobs:
             exit 0
 
       # 步骤2：仅在需要时才启用（例如手动触发或特定条件）
-      - name: Restart server (optional)
-        if: github.event.inputs.restart_server == 'true'  # 示例条件
-        uses: appleboy/ssh-action@v0.1.10
-        with:
-          host: ${{ secrets.HOST }}
-          username: ${{ secrets.USERNAME }}
-          key: ${{ secrets.DEPLOY_KEY }}
-          script: |
-            nohup sh -c 'sleep 5 && sudo reboot' > /dev/null 2>&1 &
+      # - name: Restart server (optional)
+      #   if: github.event.inputs.restart_server == 'true'  # 示例条件
+      #   uses: appleboy/ssh-action@v0.1.10
+      #   with:
+      #     host: ${{ secrets.HOST }}
+      #     username: ${{ secrets.USERNAME }}
+      #     key: ${{ secrets.DEPLOY_KEY }}
+      #     script: |
+      #       nohup sh -c 'sleep 5 && sudo reboot' > /dev/null 2>&1 &
