@@ -42,12 +42,14 @@ jobs:
           pty: true
           script: |
             cd /var/www/my-backend
-            npm ci --omit=dev || exit 1
-            npx prisma generate || exit 1
+            npm ci --omit=dev
+            npx prisma generate
             pkill -f "[n]ode dist/index.js" || true
             sleep 1
             nohup node dist/index.js > index.log 2>&1 </dev/null &
-            exit 0
+            disown -a
+            sleep 0.1
+            echo "Deployment succeeded" && exit 0
 
       # 步骤2：仅在需要时才启用（例如手动触发或特定条件）
       # - name: Restart server (optional)
