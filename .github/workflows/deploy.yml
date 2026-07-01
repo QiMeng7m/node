@@ -38,7 +38,6 @@ jobs:
           host: ${{ secrets.HOST }}
           username: ${{ secrets.USERNAME }}
           key: ${{ secrets.DEPLOY_KEY }}
-          timeout: 60s   # 增加超时时间
           pty: true
           script: |
             cd /var/www/my-backend
@@ -48,8 +47,7 @@ jobs:
             sleep 1
             nohup node dist/index.js > index.log 2>&1 </dev/null &
             disown -a
-            sleep 0.1
-            echo "Deployment succeeded" && exit 0
+            exit 0
 
       # 步骤2：仅在需要时才启用（例如手动触发或特定条件）
       # - name: Restart server (optional)
