@@ -5,6 +5,7 @@ import { authRouter } from './auth.js'
 import { catalogRouter } from './catalog.js'
 import { chatRouter } from './chat.js'
 import { sessionsRouter } from './sessions.js'
+import { siteRouter } from './site.js'
 
 export const apiRouter = Router()
 
@@ -13,6 +14,7 @@ apiRouter.use('/admin', adminRouter)
 apiRouter.use('/', catalogRouter)
 apiRouter.use('/chat', chatRouter)
 apiRouter.use('/sessions', sessionsRouter)
+apiRouter.use('/site', siteRouter)
 
 apiRouter.get('/health', (_req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() })

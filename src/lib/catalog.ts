@@ -1,4 +1,6 @@
 import { prisma } from '../db.js'
+import { filterModelsForUser } from './modelAccess.js'
+import type { UserPublic } from './userDto.js'
 import { toFeaturePublic, toModelPublic } from '../lib/catalogDto.js'
 
 function todayKey(): string {
@@ -45,6 +47,11 @@ export async function getEnabledModelById(id: string) {
 
 export async function getEnabledFeatureById(id: string) {
   return prisma.feature.findFirst({ where: { id, enabled: true } })
+}
+
+export async function listEnabledModelsForUser(user?: UserPublic) {
+  const models = await listEnabledModels()
+  return filterModelsForUser(models, user)
 }
 
 export function mapModelsPublic(models: Awaited<ReturnType<typeof listEnabledModels>>) {

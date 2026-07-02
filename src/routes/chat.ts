@@ -13,9 +13,16 @@ import {
 import {
   getEnabledFeatureById,
   getEnabledModelById,
-  getTodayUsage,
-  incrementTodayUsage,
 } from '../lib/catalog.js'
+import { getClientIp } from '../lib/clientIp.js'
+import {
+  assertIpChatAllowed,
+  assertUserQuotaAllowed,
+  incrementIpChatCount,
+  incrementUserQuotaUsed,
+  QUOTA_EXCEEDED_MESSAGE,
+} from '../lib/quota.js'
+import { userCanAccessModel } from '../lib/modelAccess.js'
 import { sendError } from '../lib/errors.js'
 import { endSse, initSse, writeSse } from '../lib/sse.js'
 import { streamUpstreamChat } from '../providers/stream.js'
@@ -94,6 +101,11 @@ chatRouter.post('/', requireAuth, async (req: AuthedRequest, res) => {
     return
   }
 
+  if (!userCanAccessModel(user, modelRecord)) {
+    sendError(res, 403, 'FORBIDDEN', '您暂无权限使用该模型，请联系管理员开通 Pro 权限')
+    return
+  }
+
   const featureId = body.featureId?.trim() || 'free-chat'
   const feature = await getEnabledFeatureById(featureId)
   if (!feature) {
@@ -123,9 +135,25 @@ chatRouter.post('/', requireAuth, async (req: AuthedRequest, res) => {
     return
   }
 
-  const usedToday = await getTodayUsage(userId)
-  if (usedToday >= user.dailyQuota) {
-    sendError(res, 429, 'RATE_LIMITED', '今日请求次数已达上限')
+  const clientIp = getClientIp(req)
+
+  if (user.role !== 'admin') {
+    const ipError = await assertIpChatAllowed(clientIp)
+    if (ipError) {
+      sendError(res, 429, 'RATE_LIMITED', ipError)
+      return
+    }
+  }
+
+  const dbUser = await prisma.user.findUnique({ where: { id: userId } })
+  if (!dbUser) {
+    sendError(res, 401, 'UNAUTHORIZED', '用户不存在')
+    return
+  }
+
+  const quotaError = assertUserQuotaAllowed(dbUser.quotaUsed, dbUser.quotaLimit)
+  if (quotaError) {
+    sendError(res, 429, 'RATE_LIMITED', QUOTA_EXCEEDED_MESSAGE)
     return
   }
 
@@ -255,7 +283,10 @@ chatRouter.post('/', requireAuth, async (req: AuthedRequest, res) => {
       },
     })
 
-    await incrementTodayUsage(userId)
+    await incrementUserQuotaUsed(userId)
+    if (user.role !== 'admin') {
+      await incrementIpChatCount(clientIp)
+    }
 
     writeSse(res, 'message_end', {
       messageId: assistantMessageId,

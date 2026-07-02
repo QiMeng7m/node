@@ -1,13 +1,18 @@
 import { Router } from 'express'
-import { listEnabledFeatures, listEnabledModels, mapFeaturesPublic, mapModelsPublic } from '../lib/catalog.js'
-import { optionalAuth } from '../middleware/auth.js'
+import {
+  listEnabledFeatures,
+  listEnabledModelsForUser,
+  mapFeaturesPublic,
+  mapModelsPublic,
+} from '../lib/catalog.js'
+import { optionalAuth, type AuthedRequest } from '../middleware/auth.js'
 
 export const catalogRouter = Router()
 
 catalogRouter.use(optionalAuth)
 
-catalogRouter.get('/models', async (_req, res) => {
-  const models = await listEnabledModels()
+catalogRouter.get('/models', async (req: AuthedRequest, res) => {
+  const models = await listEnabledModelsForUser(req.user)
   res.json({ items: mapModelsPublic(models) })
 })
 

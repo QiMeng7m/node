@@ -9,6 +9,7 @@ import {
 import { sendError } from '../lib/errors.js'
 import { hashPassword, validatePassword } from '../lib/password.js'
 import { toUserPublic } from '../lib/userDto.js'
+import { normalizeUsername, validateUsername } from '../lib/username.js'
 import { requireAdmin, type AuthedRequest } from '../middleware/auth.js'
 
 export const adminRouter = Router()
@@ -27,31 +28,37 @@ async function uniqueProviderSlug(base: string): Promise<string> {
 }
 
 adminRouter.get('/users', async (_req, res) => {
-  const today = new Date().toISOString().slice(0, 10)
   const users = await prisma.user.findMany({ orderBy: { createdAt: 'desc' } })
-  const usageRows = await prisma.usageDaily.findMany({
-    where: { date: today, userId: { in: users.map((u) => u.id) } },
-  })
-  const usageMap = new Map(usageRows.map((row) => [row.userId, row.count]))
 
   res.json({
     items: users.map((u) => ({
       ...toUserPublic(u),
       enabled: u.enabled,
-      todayUsage: usageMap.get(u.id) ?? 0,
+      registeredIp: u.registeredIp ?? undefined,
     })),
   })
 })
 
 adminRouter.post('/users', async (req, res) => {
   const body = req.body as Record<string, unknown>
-  const email = typeof body.email === 'string' ? body.email.trim().toLowerCase() : ''
+  const username =
+    typeof body.username === 'string'
+      ? normalizeUsername(body.username)
+      : typeof body.email === 'string'
+        ? normalizeUsername(body.email)
+        : ''
   const password = typeof body.password === 'string' ? body.password : ''
   const role = body.role === 'admin' ? 'admin' : 'user'
-  const dailyQuota = typeof body.dailyQuota === 'number' ? body.dailyQuota : 100
+  const quotaLimit = typeof body.quotaLimit === 'number' ? body.quotaLimit : 100
 
-  if (!email || !password) {
-    sendError(res, 400, 'VALIDATION_ERROR', '请提供邮箱和初始密码')
+  if (!username || !password) {
+    sendError(res, 400, 'VALIDATION_ERROR', '请提供账号和初始密码')
+    return
+  }
+
+  const usernameError = validateUsername(username)
+  if (usernameError) {
+    sendError(res, 400, 'VALIDATION_ERROR', usernameError)
     return
   }
 
@@ -61,22 +68,22 @@ adminRouter.post('/users', async (req, res) => {
     return
   }
 
-  const existing = await prisma.user.findUnique({ where: { email } })
+  const existing = await prisma.user.findUnique({ where: { username } })
   if (existing) {
-    sendError(res, 400, 'VALIDATION_ERROR', '该邮箱已存在')
+    sendError(res, 400, 'VALIDATION_ERROR', '该账号已存在')
     return
   }
 
   const user = await prisma.user.create({
     data: {
-      email,
+      username,
       passwordHash: await hashPassword(password),
       role,
-      dailyQuota,
+      quotaLimit,
     },
   })
 
-  res.status(201).json({ ...toUserPublic(user), enabled: user.enabled, todayUsage: 0 })
+  res.status(201).json({ ...toUserPublic(user), enabled: user.enabled })
 })
 
 adminRouter.patch('/users/:id', async (req: AuthedRequest, res) => {
@@ -91,13 +98,17 @@ adminRouter.patch('/users/:id', async (req: AuthedRequest, res) => {
 
   const data: {
     role?: string
-    dailyQuota?: number
+    quotaLimit?: number
+    quotaUsed?: number
     enabled?: boolean
+    proAccess?: boolean
     tokenVersion?: { increment: number }
   } = {}
 
   if (body.role === 'admin' || body.role === 'user') data.role = body.role
-  if (typeof body.dailyQuota === 'number') data.dailyQuota = body.dailyQuota
+  if (typeof body.quotaLimit === 'number') data.quotaLimit = body.quotaLimit
+  if (typeof body.quotaUsed === 'number') data.quotaUsed = body.quotaUsed
+  if (typeof body.proAccess === 'boolean') data.proAccess = body.proAccess
   if (typeof body.enabled === 'boolean') {
     data.enabled = body.enabled
     if (!body.enabled) data.tokenVersion = { increment: 1 }
@@ -237,6 +248,7 @@ adminRouter.post('/models', async (req, res) => {
       costTier: typeof body.costTier === 'string' ? body.costTier : 'low',
       enabled: body.enabled !== false,
       sortOrder: typeof body.sortOrder === 'number' ? body.sortOrder : 0,
+      requiresPermission: body.requiresPermission === true,
     },
   })
   res.status(201).json(toModelAdmin(model))
@@ -258,6 +270,7 @@ adminRouter.patch('/models/:id', async (req, res) => {
   if (typeof body.costTier === 'string') data.costTier = body.costTier
   if (typeof body.enabled === 'boolean') data.enabled = body.enabled
   if (typeof body.sortOrder === 'number') data.sortOrder = body.sortOrder
+  if (typeof body.requiresPermission === 'boolean') data.requiresPermission = body.requiresPermission
   if (typeof body.modelId === 'string' && body.modelId.trim()) data.upstreamModelId = body.modelId.trim()
 
   res.json(toModelAdmin(await prisma.aiModel.update({ where: { id }, data })))

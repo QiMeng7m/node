@@ -1,19 +1,26 @@
 import type { User } from '@prisma/client'
+import { quotaRemaining } from './quota.js'
 
 export type UserPublic = {
   id: string
-  email: string
+  username: string
   role: 'admin' | 'user'
-  dailyQuota: number
+  quotaLimit: number
+  quotaUsed: number
+  quotaRemaining: number
+  proAccess: boolean
   createdAt: string
 }
 
 export function toUserPublic(user: User): UserPublic {
   return {
     id: user.id,
-    email: user.email,
+    username: user.username,
     role: user.role as 'admin' | 'user',
-    dailyQuota: user.dailyQuota,
+    quotaLimit: user.quotaLimit,
+    quotaUsed: user.quotaUsed,
+    quotaRemaining: quotaRemaining(user.quotaUsed, user.quotaLimit),
+    proAccess: user.proAccess,
     createdAt: user.createdAt.toISOString(),
   }
 }

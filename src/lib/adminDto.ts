@@ -37,6 +37,7 @@ export function toModelAdmin(model: AiModel) {
     tags: parseJson<string[]>(model.tags, []),
     supportsVision: model.supportsVision,
     costTier: model.costTier,
+    requiresPermission: model.requiresPermission,
     enabled: model.enabled,
     sortOrder: model.sortOrder,
   }

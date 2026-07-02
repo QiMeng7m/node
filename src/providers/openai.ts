@@ -1,3 +1,6 @@
+import OpenAI from 'openai'
+import type { ChatCompletionMessageParam } from 'openai/resources/chat/completions'
+
 export interface VisionImage {
   mime: string
   base64: string
@@ -39,6 +42,23 @@ export interface StreamChunk {
   usage?: StreamUsage
 }
 
+function deepseekModelOptions(upstreamModelId: string): Record<string, unknown> {
+  if (upstreamModelId === 'deepseek-v4-pro') {
+    return {
+      thinking: { type: 'enabled' },
+      reasoning_effort: 'high',
+    }
+  }
+  return {}
+}
+
+function toChatMessages(messages: UpstreamMessage[]): ChatCompletionMessageParam[] {
+  return messages.map((msg) => ({
+    role: msg.role,
+    content: toOpenAIContent(msg),
+  })) as ChatCompletionMessageParam[]
+}
+
 export async function* streamChatCompletions(
   baseUrl: string,
   apiKey: string,
@@ -46,87 +66,38 @@ export async function* streamChatCompletions(
   messages: UpstreamMessage[],
   signal?: AbortSignal,
 ): AsyncGenerator<StreamChunk> {
-  const url = `${baseUrl.replace(/\/$/, '')}/chat/completions`
-  const res = await fetch(url, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${apiKey}`,
-    },
-    body: JSON.stringify({
+  const openai = new OpenAI({
+    baseURL: baseUrl.replace(/\/$/, ''),
+    apiKey,
+  })
+
+  const stream = await openai.chat.completions.create(
+    {
       model: upstreamModelId,
-      messages: messages.map((msg) => ({
-        role: msg.role,
-        content: toOpenAIContent(msg),
-      })),
+      messages: toChatMessages(messages),
       stream: true,
       stream_options: { include_usage: true },
       temperature: 0.7,
-    }),
-    signal,
-  })
+      ...deepseekModelOptions(upstreamModelId),
+    },
+    { signal },
+  )
 
-  if (!res.ok) {
-    const text = await res.text().catch(() => '')
-    throw new Error(text || `上游模型请求失败 (${res.status})`)
-  }
+  for await (const chunk of stream) {
+    const delta = chunk.choices[0]?.delta?.content
+    if (delta) {
+      yield { delta }
+    }
 
-  if (!res.body) {
-    throw new Error('上游响应体为空')
-  }
-
-  const reader = res.body.getReader()
-  const decoder = new TextDecoder()
-  let buffer = ''
-
-  try {
-    while (true) {
-      const { done, value } = await reader.read()
-      if (done) break
-
-      buffer += decoder.decode(value, { stream: true })
-      const lines = buffer.split('\n')
-      buffer = lines.pop() ?? ''
-
-      for (const line of lines) {
-        const trimmed = line.trim()
-        if (!trimmed.startsWith('data:')) continue
-        const payload = trimmed.slice(5).trim()
-        if (!payload || payload === '[DONE]') continue
-
-        let parsed: unknown
-        try {
-          parsed = JSON.parse(payload)
-        } catch {
-          continue
-        }
-
-        const chunk = parsed as {
-          choices?: { delta?: { content?: string } }[]
-          usage?: {
-            prompt_tokens?: number
-            completion_tokens?: number
-            total_tokens?: number
-          }
-        }
-
-        const delta = chunk.choices?.[0]?.delta?.content
-        const usage = chunk.usage
-        if (delta) {
-          yield { delta }
-        }
-        if (usage) {
-          yield {
-            usage: {
-              promptTokens: usage.prompt_tokens ?? 0,
-              completionTokens: usage.completion_tokens ?? 0,
-              totalTokens: usage.total_tokens ?? 0,
-            },
-          }
-        }
+    const usage = chunk.usage
+    if (usage) {
+      yield {
+        usage: {
+          promptTokens: usage.prompt_tokens ?? 0,
+          completionTokens: usage.completion_tokens ?? 0,
+          totalTokens: usage.total_tokens ?? 0,
+        },
       }
     }
-  } finally {
-    reader.releaseLock()
   }
 }
