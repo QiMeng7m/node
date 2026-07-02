@@ -1,208 +1,69 @@
-import { PrismaClient } from '@prisma/client'
+import { Prisma, PrismaClient } from '@prisma/client'
 import { hashPassword } from '../src/lib/password.js'
+import { getDefaultOwnerProfile, OWNER_PROFILE_ROW_ID } from '../src/lib/ownerProfileDto.js'
 
 const prisma = new PrismaClient()
 
-const SEED_ADMIN_EMAIL = 'admin@example.com'
+type SeedUser = {
+  username: string
+  password: string
+  role: string
+  quotaLimit: number
+  proAccess: boolean
+}
+
+async function ensureSeedUser(seed: SeedUser): Promise<void> {
+  const existing = await prisma.user.findUnique({ where: { username: seed.username } })
+  if (!existing) {
+    const data: Prisma.UserCreateInput = {
+      username: seed.username,
+      passwordHash: await hashPassword(seed.password),
+      role: seed.role,
+      quotaLimit: seed.quotaLimit,
+      proAccess: seed.proAccess,
+    }
+    await prisma.user.create({ data })
+    console.log(`Seed user: ${seed.username} / ${seed.password}`)
+    return
+  }
+
+  if (seed.proAccess && !existing.proAccess) {
+    await prisma.user.update({
+      where: { id: existing.id },
+      data: { proAccess: true },
+    })
+  }
+}
+
+const SEED_ADMIN_USERNAME = 'admin'
 const SEED_ADMIN_PASSWORD = 'admin123456'
 
-const DEFAULT_MODEL_ID = 'default/glm-5.1'
-const VISION_MODEL_ID = 'default/glm-5.1'
-const CODER_MODEL_ID = 'default/kimi-for-coding'
+const DEFAULT_MODEL_ID = 'deepseek/deepseek-v4-flash'
+const PRO_MODEL_ID = 'deepseek/deepseek-v4-pro'
 
-/** 支持 Vision 的模型 ID */
-const VISION_MODEL_IDS = new Set([
-  'default/glm-5.1',
-  'default/glm-5.2',
-  'default/gpt-5.5',
-  'default/claude-opus-4-7',
-  'default/claude-opus-4-8',
-  'default/claude-sonnet-4-6',
-  'default/claude-fable-5',
-  'default/kimi-k2.6',
-])
-
-/** JZ Internal one-api 可用模型（与网关列表一致） */
+/** DeepSeek 官方 API 模型 */
 const MODEL_SEED = [
   {
-    id: 'default/deepseek-v4-pro',
-    upstreamModelId: 'deepseek-v4-pro',
-    label: 'DeepSeek V4 Pro',
-    description: 'DeepSeek 旗舰',
-    tags: ['strong'],
-    costTier: 'high',
-    sortOrder: 0,
-  },
-  {
-    id: 'default/glm-5.1',
-    upstreamModelId: 'glm-5.1',
-    label: 'GLM 5.1',
-    description: '智谱 GLM 5.1',
-    tags: ['fast'],
-    costTier: 'low',
-    sortOrder: 1,
-  },
-  {
-    id: 'default/deepseek-v4-flash',
+    id: 'deepseek/deepseek-v4-flash',
     upstreamModelId: 'deepseek-v4-flash',
     label: 'DeepSeek V4 Flash',
-    description: 'DeepSeek 快速版',
+    description: '快速响应，所有用户可用',
     tags: ['fast'],
     costTier: 'low',
-    sortOrder: 2,
+    sortOrder: 0,
+    recommended: true,
+    requiresPermission: false,
   },
   {
-    id: 'default/glm-5.2',
-    upstreamModelId: 'glm-5.2',
-    label: 'GLM 5.2',
-    description: '智谱 GLM 5.2',
-    tags: ['strong'],
-    costTier: 'low',
-    sortOrder: 3,
-  },
-  {
-    id: 'default/mimo-v2.5-pro',
-    upstreamModelId: 'mimo-v2.5-pro',
-    label: 'MiMo V2.5 Pro',
-    description: 'MiMo 增强版',
-    tags: ['strong'],
-    costTier: 'low',
-    sortOrder: 4,
-  },
-  {
-    id: 'default/gpt-5.5',
-    upstreamModelId: 'gpt-5.5',
-    label: 'GPT 5.5',
-    description: 'OpenAI GPT 5.5',
+    id: PRO_MODEL_ID,
+    upstreamModelId: 'deepseek-v4-pro',
+    label: 'DeepSeek V4 Pro',
+    description: '旗舰推理，需管理员授权',
     tags: ['strong'],
     costTier: 'high',
-    sortOrder: 5,
-  },
-  {
-    id: 'default/glm-5-turbo',
-    upstreamModelId: 'glm-5-turbo',
-    label: 'GLM 5 Turbo',
-    description: '智谱 GLM 5 Turbo',
-    tags: ['fast'],
-    costTier: 'low',
-    sortOrder: 6,
-  },
-  {
-    id: 'default/claude-opus-4-7',
-    upstreamModelId: 'claude-opus-4-7',
-    label: 'Claude Opus 4.7',
-    description: 'Anthropic Opus 4.7',
-    tags: ['strong'],
-    costTier: 'high',
-    sortOrder: 7,
-  },
-  {
-    id: 'default/claude-opus-4-8',
-    upstreamModelId: 'claude-opus-4-8',
-    label: 'Claude Opus 4.8',
-    description: 'Anthropic Opus 4.8',
-    tags: ['strong'],
-    costTier: 'high',
-    sortOrder: 8,
-  },
-  {
-    id: 'default/minimax-m2.7-highspeed',
-    upstreamModelId: 'MiniMax-M2.7-highspeed',
-    label: 'MiniMax M2.7 Highspeed',
-    description: 'MiniMax 高速版',
-    tags: ['fast'],
-    costTier: 'low',
-    sortOrder: 9,
-  },
-  {
-    id: 'default/mimo-v2.5',
-    upstreamModelId: 'mimo-v2.5',
-    label: 'MiMo V2.5',
-    description: 'MiMo 标准版',
-    tags: ['fast'],
-    costTier: 'low',
-    sortOrder: 10,
-  },
-  {
-    id: 'default/kimi-k2.6',
-    upstreamModelId: 'kimi-k2.6',
-    label: 'Kimi K2.6',
-    description: 'Kimi 对话模型',
-    tags: ['strong'],
-    costTier: 'low',
-    sortOrder: 11,
-  },
-  {
-    id: 'default/kimi-for-coding',
-    upstreamModelId: 'kimi-for-coding',
-    label: 'Kimi for Coding',
-    description: 'Kimi 代码专用',
-    tags: ['code'],
-    costTier: 'low',
-    sortOrder: 12,
-  },
-  {
-    id: 'default/claude-sonnet-4-6',
-    upstreamModelId: 'claude-sonnet-4-6',
-    label: 'Claude Sonnet 4.6',
-    description: 'Anthropic Sonnet 4.6',
-    tags: ['strong'],
-    costTier: 'high',
-    sortOrder: 13,
-  },
-  {
-    id: 'default/glm-4.5-air',
-    upstreamModelId: 'glm-4.5-air',
-    label: 'GLM 4.5 Air',
-    description: '智谱 GLM 4.5 Air',
-    tags: ['cheap', 'fast'],
-    costTier: 'low',
-    sortOrder: 14,
-  },
-  {
-    id: 'default/cursor-claude-opus-4-7-max-fast',
-    upstreamModelId: 'cursor-claude-opus-4-7-max-fast',
-    label: 'Cursor Claude Opus 4.7 Max Fast',
-    description: 'Cursor 代码加速',
-    tags: ['code', 'fast'],
-    costTier: 'high',
-    sortOrder: 15,
-  },
-  {
-    id: 'default/mimo-v2-pro',
-    upstreamModelId: 'mimo-v2-pro',
-    label: 'MiMo V2 Pro',
-    description: 'MiMo Pro',
-    tags: ['strong'],
-    costTier: 'low',
-    sortOrder: 16,
-  },
-  {
-    id: 'default/minimax-m2.7',
-    upstreamModelId: 'MiniMax-M2.7',
-    label: 'MiniMax M2.7',
-    description: 'MiniMax 标准版',
-    tags: ['fast'],
-    costTier: 'low',
-    sortOrder: 17,
-  },
-  {
-    id: 'default/claude-fable-5',
-    upstreamModelId: 'claude-fable-5',
-    label: 'Claude Fable 5',
-    description: 'Anthropic Fable 5',
-    tags: ['strong'],
-    costTier: 'high',
-    sortOrder: 18,
-  },
-  {
-    id: 'default/glm-4.7',
-    upstreamModelId: 'glm-4.7',
-    label: 'GLM 4.7',
-    description: '智谱 GLM 4.7',
-    tags: ['fast'],
-    costTier: 'low',
-    sortOrder: 19,
+    sortOrder: 1,
+    recommended: false,
+    requiresPermission: true,
   },
 ] as const
 
@@ -225,7 +86,7 @@ const FEATURE_SEED = [
     icon: '🛠',
     category: 'code',
     modelPolicy: 'recommended',
-    defaultModelId: CODER_MODEL_ID,
+    defaultModelId: DEFAULT_MODEL_ID,
     systemPrompt:
       '你是资深软件工程师，擅长阅读代码与报错并给出可执行的修复步骤。回答要结构化，必要时给出命令或代码片段。',
     uiSchema: JSON.stringify({ type: 'plain' }),
@@ -294,7 +155,7 @@ const FEATURE_SEED = [
     description: '看懂截图',
     icon: '🖼',
     category: 'image',
-    modelPolicy: 'locked',
+    modelPolicy: 'free',
     defaultModelId: DEFAULT_MODEL_ID,
     systemPrompt: '你是视觉分析助手，描述图片内容并回答用户关于图片的问题。',
     uiSchema: JSON.stringify({ type: 'plain' }),
@@ -302,21 +163,40 @@ const FEATURE_SEED = [
   },
 ] as const
 
+function toFeaturePayload(
+  feature: (typeof FEATURE_SEED)[number],
+): Prisma.FeatureUncheckedCreateInput {
+  return {
+    id: feature.id,
+    name: feature.name,
+    description: feature.description,
+    icon: feature.icon,
+    category: feature.category,
+    modelPolicy: feature.modelPolicy,
+    defaultModelId: 'defaultModelId' in feature ? feature.defaultModelId : null,
+    systemPrompt: feature.systemPrompt,
+    uiSchema: feature.uiSchema,
+    sortOrder: feature.sortOrder,
+    enabled: true,
+  }
+}
+
 async function seedFeatures() {
   for (const feature of FEATURE_SEED) {
+    const payload = toFeaturePayload(feature)
     await prisma.feature.upsert({
       where: { id: feature.id },
-      create: feature,
+      create: payload,
       update: {
-        name: feature.name,
-        description: feature.description,
-        icon: feature.icon,
-        category: feature.category,
-        modelPolicy: feature.modelPolicy,
-        defaultModelId: 'defaultModelId' in feature ? feature.defaultModelId : null,
-        systemPrompt: feature.systemPrompt,
-        uiSchema: feature.uiSchema,
-        sortOrder: feature.sortOrder,
+        name: payload.name,
+        description: payload.description,
+        icon: payload.icon,
+        category: payload.category,
+        modelPolicy: payload.modelPolicy,
+        defaultModelId: payload.defaultModelId,
+        systemPrompt: payload.systemPrompt,
+        uiSchema: payload.uiSchema,
+        sortOrder: payload.sortOrder,
         enabled: true,
       },
     })
@@ -324,32 +204,30 @@ async function seedFeatures() {
 }
 
 async function seedProviderFromEnv() {
-  const apiKey =
-    process.env.ANTHROPIC_API_KEY?.trim() || process.env.LLM_API_KEY?.trim()
+  const apiKey = process.env.DEEPSEEK_API_KEY?.trim() || process.env.LLM_API_KEY?.trim()
   const baseUrl =
-    process.env.ANTHROPIC_BASE_URL?.trim() ||
+    process.env.DEEPSEEK_BASE_URL?.trim() ||
     process.env.LLM_BASE_URL?.trim()?.replace(/\/v1\/?$/, '') ||
     'https://api.deepseek.com'
-  const protocol =
-    process.env.LLM_PROTOCOL?.trim() ||
-    (process.env.ANTHROPIC_BASE_URL?.trim() ? 'anthropic' : 'openai-compat')
+  const protocol = 'openai-compat'
+
   if (!apiKey) {
-    console.log('ANTHROPIC_API_KEY / LLM_API_KEY 未配置，跳过 Provider/模型种子')
+    console.log('DEEPSEEK_API_KEY / LLM_API_KEY 未配置，跳过 Provider/模型种子')
     return
   }
 
   const provider = await prisma.provider.upsert({
-    where: { slug: 'default' },
+    where: { slug: 'deepseek' },
     create: {
-      slug: 'default',
-      name: process.env.LLM_PROVIDER_NAME?.trim() || 'Default LLM',
+      slug: 'deepseek',
+      name: process.env.LLM_PROVIDER_NAME?.trim() || 'DeepSeek',
       baseUrl,
       apiKey,
       protocol,
       enabled: true,
     },
     update: {
-      name: process.env.LLM_PROVIDER_NAME?.trim() || 'Default LLM',
+      name: process.env.LLM_PROVIDER_NAME?.trim() || 'DeepSeek',
       baseUrl,
       apiKey,
       protocol,
@@ -357,28 +235,19 @@ async function seedProviderFromEnv() {
     },
   })
 
-  // upstreamModelId 与 claude-jz.ps1 中 $env:ANTHROPIC_MODEL 取值一致
-  const defaultRecommended =
-    process.env.ANTHROPIC_MODEL?.trim() || process.env.LLM_MODEL?.trim() || 'glm-5.1'
-
   for (const model of MODEL_SEED) {
-    const recommended = model.upstreamModelId === defaultRecommended
-    const supportsVision = VISION_MODEL_IDS.has(model.id)
-    const tagList = [...model.tags]
-    if (supportsVision && !tagList.includes('vision')) {
-      tagList.push('vision')
-    }
-    const tags = JSON.stringify(tagList)
+    const tags = JSON.stringify([...model.tags])
     const base = {
       providerId: provider.id,
       upstreamModelId: model.upstreamModelId,
       label: model.label,
       description: model.description,
       tags,
-      supportsVision,
+      supportsVision: false,
       supportsStream: true,
       costTier: model.costTier,
-      recommended,
+      recommended: model.recommended,
+      requiresPermission: model.requiresPermission,
       enabled: true,
       sortOrder: model.sortOrder,
     }
@@ -395,8 +264,37 @@ async function seedProviderFromEnv() {
     data: { enabled: false },
   })
 
-  console.log(`Seed LLM provider: ${provider.name} (${baseUrl}, ${protocol})`)
-  console.log(`Seed models: ${MODEL_SEED.length} items (ANTHROPIC_MODEL=${defaultRecommended})`)
+  // 停用旧 default provider 下的模型
+  const legacyProvider = await prisma.provider.findUnique({ where: { slug: 'default' } })
+  if (legacyProvider) {
+    await prisma.aiModel.updateMany({
+      where: { providerId: legacyProvider.id },
+      data: { enabled: false },
+    })
+    await prisma.provider.update({
+      where: { id: legacyProvider.id },
+      data: { enabled: false },
+    })
+  }
+
+  console.log(`Seed LLM provider: ${provider.name} (${baseUrl})`)
+  console.log(`Seed models: ${MODEL_SEED.length} DeepSeek models`)
+}
+
+async function seedOwnerProfile(): Promise<void> {
+  const existing = await prisma.siteOwnerProfile.findUnique({
+    where: { id: OWNER_PROFILE_ROW_ID },
+  })
+  if (existing) return
+
+  const profile = getDefaultOwnerProfile()
+  await prisma.siteOwnerProfile.create({
+    data: {
+      id: OWNER_PROFILE_ROW_ID,
+      data: JSON.stringify(profile),
+    },
+  })
+  console.log('Seed site owner profile')
 }
 
 async function main() {
@@ -420,35 +318,25 @@ async function main() {
     })
   }
 
-  const admin = await prisma.user.findUnique({ where: { email: SEED_ADMIN_EMAIL } })
-  if (!admin) {
-    await prisma.user.create({
-      data: {
-        email: SEED_ADMIN_EMAIL,
-        passwordHash: await hashPassword(SEED_ADMIN_PASSWORD),
-        role: 'admin',
-        dailyQuota: 100,
-      },
-    })
-    console.log(`Seed admin: ${SEED_ADMIN_EMAIL} / ${SEED_ADMIN_PASSWORD}`)
-  }
+  await ensureSeedUser({
+    username: SEED_ADMIN_USERNAME,
+    password: SEED_ADMIN_PASSWORD,
+    role: 'admin',
+    quotaLimit: 10000,
+    proAccess: true,
+  })
 
-  const userEmail = 'user@example.com'
-  const demoUser = await prisma.user.findUnique({ where: { email: userEmail } })
-  if (!demoUser) {
-    await prisma.user.create({
-      data: {
-        email: userEmail,
-        passwordHash: await hashPassword('user123456'),
-        role: 'user',
-        dailyQuota: 50,
-      },
-    })
-    console.log(`Seed user: ${userEmail} / user123456`)
-  }
+  await ensureSeedUser({
+    username: 'user',
+    password: 'user123456',
+    role: 'user',
+    quotaLimit: 50,
+    proAccess: false,
+  })
 
   await seedFeatures()
   await seedProviderFromEnv()
+  await seedOwnerProfile()
 }
 
 main()

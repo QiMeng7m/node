@@ -17,10 +17,13 @@ model Post {
 
 model User {
   id           String        @id @default(cuid())
-  email        String        @unique
+  username     String        @unique
   passwordHash String
   role         String        @default("user") // admin | user
-  dailyQuota   Int           @default(100)
+  quotaLimit   Int           @default(100)
+  quotaUsed    Int           @default(0)
+  registeredIp String?
+  proAccess    Boolean       @default(false) // 可使用 deepseek-v4-pro
   enabled      Boolean       @default(true)
   tokenVersion Int           @default(0)
   lastLoginAt  DateTime?
@@ -53,9 +56,10 @@ model AiModel {
   supportsVision  Boolean  @default(false)
   supportsStream  Boolean  @default(true)
   costTier        String   @default("low")
-  recommended     Boolean  @default(false)
-  enabled         Boolean  @default(true)
-  sortOrder       Int      @default(0)
+  recommended         Boolean  @default(false)
+  requiresPermission  Boolean  @default(false)
+  enabled             Boolean  @default(true)
+  sortOrder           Int      @default(0)
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
@@ -110,4 +114,19 @@ model UsageDaily {
   count  Int    @default(0)
 
   @@unique([userId, date])
+}
+
+/** 站点主人资料（单行 singleton，id 固定为 default） */
+model SiteOwnerProfile {
+  id        String   @id @default("default")
+  data      String
+  updatedAt DateTime @updatedAt
+}
+
+/** 按 IP 累计用量（防多号刷配额） */
+model IpQuota {
+  ip            String   @id
+  chatCount     Int      @default(0)
+  registerCount Int      @default(0)
+  updatedAt     DateTime @updatedAt
 }
